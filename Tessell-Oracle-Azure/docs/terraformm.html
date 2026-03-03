@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What Terraform Actually Does</title>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f8f6f1;
+  --surface: #ffffff;
+  --surface2: #f2efe8;
+  --border: #e0dbd0;
+  --ink: #1a1814;
+  --ink2: #4a4640;
+  --ink3: #8a857d;
+  --accent: #e85d26;
+  --accent2: #2563eb;
+  --accent3: #059669;
+  --yellow: #d97706;
+  --purple: #7c3aed;
+  --code-bg: #1e1c18;
+  --code-text: #e8e4dc;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── HERO ── */
+.hero {
+  padding: 6rem 0 4rem;
+  border-bottom: 2px solid var(--ink);
+  position: relative;
+}
+
+.hero-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.hero-eyebrow::before {
+  content: '';
+  width: 32px;
+  height: 2px;
+  background: var(--accent);
+}
+
+.hero h1 {
+  font-size: clamp(3rem, 7vw, 6rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  margin-bottom: 2rem;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+  display: block;
+}
+
+.hero-answer {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink2);
+  max-width: 680px;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.hero-answer span {
+  background: var(--ink);
+  color: var(--bg);
+  padding: 0 0.3rem;
+  border-radius: 3px;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1.5px solid var(--border);
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink2);
+  background: var(--surface);
+}
+
+/* ── BIG ANSWER SECTION ── */
+.big-answer {
+  background: var(--ink);
+  color: var(--bg);
+  padding: 4rem 0;
+  margin: 4rem 0;
+  position: relative;
+}
+
+.big-answer::before {
+  content: 'THE TRUTH';
+  position: absolute;
+  top: 2rem; right: 2rem;
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: rgba(255,255,255,0.15);
+}
+
+.answer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.answer-item {
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 1.2rem;
+}
+
+.answer-item-num {
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  font-family: 'Fira Code', monospace;
+}
+
+.answer-item-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.answer-item-text {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.6;
+}
+
+/* ── SECTION ── */
+.section {
+  padding: 4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 0.8rem;
+}
+
+.section h2 {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+}
+
+.section h2 mark {
+  background: var(--accent);
+  color: white;
+  padding: 0 0.2rem;
+  border-radius: 3px;
+}
+
+p.lead {
+  font-size: 1rem;
+  color: var(--ink2);
+  max-width: 700px;
+  margin-bottom: 2rem;
+}
+
+/* ── WHAT TERRAFORM DOES - VISUAL ── */
+.terraform-roles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  overflow: hidden;
+  margin: 2rem 0;
+}
+
+@media (max-width: 700px) {
+  .terraform-roles { grid-template-columns: 1fr; }
+}
+
+.role-card {
+  padding: 2rem;
+  border-right: 2px solid var(--ink);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.role-card:hover { background: var(--surface2); }
+.role-card:last-child { border-right: none; }
+
+.role-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+.role-title { font-size: 1rem; font-weight: 800; margin-bottom: 0.5rem; }
+.role-check { color: var(--accent3); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; display: block; }
+.role-x { color: #dc2626; font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; display: block; }
+.role-text { font-size: 0.8rem; color: var(--ink3); margin-top: 0.8rem; line-height: 1.5; }
+
+/* ── FLOW ── */
+.flow-visual {
+  margin: 3rem 0;
+  position: relative;
+}
+
+.flow-step {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0;
+  position: relative;
+}
+
+.flow-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 52px;
+  bottom: -1px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--accent), transparent);
+}
+
+.flow-left {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.flow-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  z-index: 1;
+  position: relative;
+}
+
+.flow-content {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex: 1;
+  transition: border-color 0.2s;
+}
+
+.flow-content:hover { border-color: var(--accent); }
+
+.flow-content h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.flow-content p {
+  font-size: 0.85rem;
+  color: var(--ink2);
+  margin-bottom: 0;
+}
+
+.flow-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.6rem;
+  border-radius: 100px;
+  margin-left: auto;
+}
+
+.ft-cmd { background: rgba(232,93,38,0.12); color: var(--accent); border: 1px solid rgba(232,93,38,0.3); }
+.ft-file { background: rgba(37,99,235,0.1); color: var(--accent2); border: 1px solid rgba(37,99,235,0.25); }
+.ft-api  { background: rgba(5,150,105,0.1); color: var(--accent3); border: 1px solid rgba(5,150,105,0.25); }
+.ft-state { background: rgba(124,58,237,0.1); color: var(--purple); border: 1px solid rgba(124,58,237,0.25); }
+
+/* ── CODE SECTIONS ── */
+.code-section {
+  margin: 2.5rem 0;
+}
+
+.code-label-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ink);
+  padding: 0.8rem 1.2rem;
+  border-radius: 10px 10px 0 0;
+}
+
+.code-filename {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.9);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-dots-row {
+  display: flex;
+  gap: 5px;
+}
+
+.code-dots-row span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+
+pre.code-body {
+  background: var(--code-bg);
+  padding: 1.8rem;
+  overflow-x: auto;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.78rem;
+  line-height: 1.9;
+  color: var(--code-text);
+  border-radius: 0 0 10px 10px;
+  border: 1.5px solid var(--ink);
+  border-top: none;
+}
+
+/* Syntax */
+.kw  { color: #ff7b72; }
+.str { color: #a5d6ff; }
+.cm  { color: #6e7681; font-style: italic; }
+.fn  { color: #ffa657; }
+.attr{ color: #79c0ff; }
+.val { color: #f2cc60; }
+.bool{ color: #56d364; }
+.ref { color: #d2a8ff; }
+.head{ color: #ff9900; font-weight: 600; }
+
+/* ── ANALOGY BOX ── */
+.analogy {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  padding: 2.5rem;
+  margin: 2rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.analogy::before {
+  content: '"';
+  position: absolute;
+  top: -1rem; left: 1.5rem;
+  font-size: 8rem;
+  color: var(--border);
+  font-family: Georgia, serif;
+  line-height: 1;
+}
+
+.analogy-title {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.analogy-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── COMPARISON TABLE ── */
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2rem 0;
+  font-size: 0.85rem;
+}
+
+.comparison th {
+  padding: 1rem;
+  background: var(--ink);
+  color: white;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
+.comparison th:first-child { border-radius: 10px 0 0 0; }
+.comparison th:last-child  { border-radius: 0 10px 0 0; }
+
+.comparison td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.comparison tr:last-child td:first-child { border-radius: 0 0 0 10px; }
+.comparison tr:last-child td:last-child  { border-radius: 0 0 10px 0; }
+.comparison tr:hover td { background: var(--surface2); }
+
+.comparison td:first-child { font-weight: 700; color: var(--ink); }
+.comparison td:nth-child(2) { color: var(--ink3); font-size: 0.8rem; }
+.comparison td:nth-child(3) { color: var(--ink3); font-size: 0.8rem; }
+
+.yes { color: var(--accent3) !important; font-weight: 700 !important; }
+.no  { color: #dc2626 !important; font-weight: 700 !important; }
+
+/* ── CALLOUT ── */
+.callout {
+  display: flex;
+  gap: 1rem;
+  padding: 1.2rem 1.5rem;
+  border-radius: 12px;
+  margin: 1.5rem 0;
+  align-items: flex-start;
+}
+
+.c-orange { background: rgba(217,119,6,0.08); border: 1.5px solid rgba(217,119,6,0.3); }
+.c-blue   { background: rgba(37,99,235,0.06); border: 1.5px solid rgba(37,99,235,0.2); }
+.c-green  { background: rgba(5,150,105,0.06); border: 1.5px solid rgba(5,150,105,0.2); }
+.c-red    { background: rgba(220,38,38,0.06); border: 1.5px solid rgba(220,38,38,0.2); }
+
+.c-icon { font-size: 1.3rem; flex-shrink: 0; }
+.c-body { flex: 1; }
+.c-title { font-weight: 800; font-size: 0.88rem; margin-bottom: 0.3rem; }
+.c-orange .c-title { color: var(--yellow); }
+.c-blue   .c-title { color: var(--accent2); }
+.c-green  .c-title { color: var(--accent3); }
+.c-red    .c-title { color: #dc2626; }
+.c-text   { font-size: 0.83rem; color: var(--ink2); }
+.c-text code {
+  font-family: 'Fira Code', monospace;
+  background: rgba(0,0,0,0.06);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+/* ── STATE VISUAL ── */
+.state-visual {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin: 2rem 0;
+}
+
+.state-box {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.state-box-title {
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.state-box-title.desired { color: var(--accent2); }
+.state-box-title.actual  { color: var(--accent3); }
+.state-box-title.diff    { color: var(--accent); }
+
+.state-row {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.state-row:last-child { border-bottom: none; }
+.state-row span { color: var(--ink3); }
+
+.state-arrow {
+  font-size: 2rem;
+  color: var(--accent);
+  font-weight: 900;
+  text-align: center;
+}
+
+/* ── BIG CODE ── */
+.big-code-header {
+  background: linear-gradient(135deg, var(--ink) 0%, #2d2820 100%);
+  border-radius: 16px 16px 0 0;
+  padding: 2rem 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.big-code-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 0.3rem;
+}
+
+.big-code-sub {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.5);
+  font-family: 'Fira Code', monospace;
+}
+
+.big-code-tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bct {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.65rem;
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7);
+}
+
+pre.big-code-body {
+  background: #16130f;
+  padding: 2.5rem;
+  overflow-x: auto;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.77rem;
+  line-height: 2;
+  color: #d4cfc8;
+  border-radius: 0 0 16px 16px;
+  border: 1.5px solid var(--ink);
+  border-top: none;
+  counter-reset: line;
+}
+
+.line-section {
+  display: block;
+  color: #ff9900;
+  font-weight: 600;
+  margin: 1.2rem 0 0.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+}
+
+/* ── FOOTER ── */
+footer {
+  padding: 4rem 0;
+  border-top: 2px solid var(--ink);
+  text-align: center;
+}
+
+footer h3 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+footer p {
+  color: var(--ink3);
+  font-size: 0.85rem;
+}
+
+.inline { font-family: 'Fira Code', monospace; font-size: 0.85rem; background: var(--surface2); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid var(--border); color: var(--accent2); }
+
+h3 { font-size: 1.1rem; font-weight: 700; margin: 1.5rem 0 0.8rem; }
+p  { font-size: 0.9rem; color: var(--ink2); margin-bottom: 0.8rem; }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="wrap">
+<div class="hero">
+  <div class="hero-eyebrow">Terraform Fundamentals</div>
+  <h1>What Does<br>Terraform<em>Actually Do?</em></h1>
+  <p class="hero-answer">
+    No — Terraform is <span>NOT just for writing infrastructure code</span>.
+    It declares, provisions, tracks, updates, and destroys real cloud infrastructure automatically.
+  </p>
+  <div class="hero-meta">
+    <span class="pill">🏗️ Infrastructure as Code</span>
+    <span class="pill">☁️ Multi-Cloud</span>
+    <span class="pill">🔄 State Management</span>
+    <span class="pill">🔌 Provider Ecosystem</span>
+  </div>
+</div>
+</div>
+
+<!-- BIG ANSWER -->
+<div class="big-answer">
+  <div class="wrap">
+    <div style="font-size:0.65rem;font-weight:900;letter-spacing:0.3em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:1rem">Terraform does 4 things</div>
+    <h2 style="font-size:clamp(1.5rem,3vw,2.5rem);font-weight:900;color:white;letter-spacing:-0.02em">It's an Infrastructure Automation Engine</h2>
+    <div class="answer-grid">
+      <div class="answer-item">
+        <div class="answer-item-num">01</div>
+        <div class="answer-item-title">DECLARE</div>
+        <p class="answer-item-text">You write HCL code describing <em>what</em> you want — a server, a database, a VPC. You don't write <em>how</em> to create it, just what the end result should look like.</p>
+      </div>
+      <div class="answer-item">
+        <div class="answer-item-num">02</div>
+        <div class="answer-item-title">PROVISION</div>
+        <p class="answer-item-text">Terraform calls the cloud provider's API (AWS, Azure, GCP, Tessell…) and actually creates the real infrastructure for you — VMs spin up, DBs are provisioned, DNS records get created.</p>
+      </div>
+      <div class="answer-item">
+        <div class="answer-item-num">03</div>
+        <div class="answer-item-title">TRACK</div>
+        <p class="answer-item-text">Terraform remembers everything it created in a state file (<code>terraform.tfstate</code>). This is how it knows what already exists vs what needs to change or be deleted.</p>
+      </div>
+      <div class="answer-item">
+        <div class="answer-item-num">04</div>
+        <div class="answer-item-title">SYNC</div>
+        <p class="answer-item-text">When you change your code, Terraform figures out the <em>minimum set of changes</em> needed to get from current state to desired state — no full rebuild, just a precise diff and apply.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WHAT TERRAFORM IS / ISN'T -->
+<div class="wrap">
+<div class="section">
+  <div class="section-label">Clarify</div>
+  <h2>What Terraform <mark>Is</mark> vs What It Isn't</h2>
+  <p class="lead">Many people think Terraform just "writes code". Here's the complete picture of what it actually covers.</p>
+
+  <div class="terraform-roles">
+    <div class="role-card">
+      <div class="role-icon">📝</div>
+      <div class="role-title">Language + Syntax</div>
+      <span class="role-check">✅ Writes HCL config files</span>
+      <span class="role-check">✅ Declares resources</span>
+      <span class="role-check">✅ Variables + outputs</span>
+      <span class="role-x">❌ Not a programming language</span>
+      <p class="role-text">HCL (HashiCorp Config Language) is declarative — you say <em>what</em>, not <em>how</em>. No loops for provisioning logic, no imperative steps.</p>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">⚙️</div>
+      <div class="role-title">Execution Engine</div>
+      <span class="role-check">✅ Calls real cloud APIs</span>
+      <span class="role-check">✅ Creates real servers/DBs</span>
+      <span class="role-check">✅ Manages dependencies</span>
+      <span class="role-x">❌ Not just "documentation"</span>
+      <p class="role-text">When you run <code>terraform apply</code>, Terraform literally provisions real infrastructure. Money gets charged. Servers spin up. This is real, live automation.</p>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">🗃️</div>
+      <div class="role-title">State Machine</div>
+      <span class="role-check">✅ Tracks what exists</span>
+      <span class="role-check">✅ Detects drift</span>
+      <span class="role-check">✅ Plans minimal changes</span>
+      <span class="role-x">❌ Not a deployment tool</span>
+      <p class="role-text">Terraform's state engine is what makes it idempotent — run apply 10 times on the same config, it only changes what's actually different. No duplicate resources.</p>
+    </div>
+  </div>
+
+  <div class="analogy">
+    <div class="analogy-title">🧠 The Best Analogy</div>
+    <p class="analogy-text">
+      Terraform is like a <strong>blueprint + contractor + project manager</strong> all in one.<br><br>
+      You write the blueprint (HCL code) → Terraform acts as the contractor who calls the right subcontractors (cloud APIs) to build what you described → Then Terraform keeps a ledger (state file) of exactly what was built, so future changes are surgical, not destructive.
+    </p>
+  </div>
+</div>
+
+<!-- HOW IT ACTUALLY EXECUTES -->
+<div class="section">
+  <div class="section-label">Under The Hood</div>
+  <h2>The Exact Execution <mark>Flow</mark></h2>
+  <p class="lead">Step by step — from your .tf file to a running database on Azure. Here's what actually happens at each stage.</p>
+
+  <div class="flow-visual">
+
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-circle">📁</div></div>
+      <div class="flow-content">
+        <h3>You Write <code>.tf</code> Files <span class="flow-tag ft-file">YOUR JOB</span></h3>
+        <p>You write HCL files declaring what infrastructure you want. You describe the desired end state — database type, cloud region, compute size, network. Terraform doesn't care how to build it, just what the result should look like. These files are committed to Git like application code.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-circle">🔌</div></div>
+      <div class="flow-content">
+        <h3><code>terraform init</code> — Downloads the Provider <span class="flow-tag ft-cmd">COMMAND</span></h3>
+        <p>Terraform reads your <code>required_providers</code> block and downloads the <strong>provider plugin</strong> from the Terraform Registry. For Tessell, it downloads <code>tessell-cloud/tessell</code>. This plugin is a binary that knows how to talk to Tessell's REST API. It gets cached in <code>.terraform/</code>. This only needs to run once per project setup.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-circle">🔍</div></div>
+      <div class="flow-content">
+        <h3><code>terraform plan</code> — The Diff Engine <span class="flow-tag ft-cmd">COMMAND</span></h3>
+        <p>This is the most important step to understand. Terraform does 3 things:<br>
+        1. <strong>Reads your .tf files</strong> — this is the <em>desired state</em><br>
+        2. <strong>Reads .tfstate</strong> — this is the <em>known current state</em><br>
+        3. <strong>Calls the cloud API</strong> to get <em>actual current state</em> (in case someone changed things manually)<br><br>
+        Then it computes the <strong>exact diff</strong> — what needs to be created, changed, or destroyed to reach desired state. Nothing is created yet. This is pure calculation.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-circle">🚀</div></div>
+      <div class="flow-content">
+        <h3><code>terraform apply</code> — Real API Calls <span class="flow-tag ft-api">REAL INFRA</span></h3>
+        <p>Now Terraform executes the plan. For each resource, it calls the provider plugin, which makes authenticated REST API calls to Tessell (or AWS, Azure, etc.). Tessell's API then provisions the actual Oracle VM, configures networking, sets up backup policies, and returns status. Terraform polls until the resource is READY. Real infrastructure is created. Real money is spent.</p>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-circle">💾</div></div>
+      <div class="flow-content">
+        <h3>State File Updated <span class="flow-tag ft-state">STATE</span></h3>
+        <p>After every resource is created, Terraform writes the result to <code>terraform.tfstate</code> — a JSON file containing every resource's ID, attributes, and metadata. This is Terraform's memory. Next time you run <code>plan</code>, Terraform reads this file to know what already exists. If you delete this file, Terraform "forgets" about all the infrastructure it created and will try to create duplicates.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- STATE EXPLAINED VISUALLY -->
+<div class="section">
+  <div class="section-label">State Engine</div>
+  <h2>How the <mark>State File</mark> Works</h2>
+  <p class="lead">The state file is what makes Terraform intelligent. Without it, every apply would blindly recreate everything from scratch.</p>
+
+  <div class="state-visual">
+    <div class="state-box">
+      <div class="state-box-title desired">DESIRED STATE (.tf files)</div>
+      <div class="state-row">engine_type <span>"ORACLE"</span></div>
+      <div class="state-row">compute_type <span>"tesl_4_a"</span></div>
+      <div class="state-row">region <span>"eastUS"</span></div>
+      <div class="state-row">topology <span>"single_instance"</span></div>
+      <div class="state-row">sla <span>"PITR-7day"</span></div>
+    </div>
+    <div class="state-arrow">→<br><small style="font-size:0.6rem;font-weight:700;color:var(--accent)">DIFF</small></div>
+    <div class="state-box">
+      <div class="state-box-title actual">ACTUAL STATE (.tfstate)</div>
+      <div class="state-row">engine_type <span>"ORACLE" ✅</span></div>
+      <div class="state-row">compute_type <span>"tesl_4_a" ✅</span></div>
+      <div class="state-row">region <span>"eastUS" ✅</span></div>
+      <div class="state-row">topology <span>"single_instance" ✅</span></div>
+      <div class="state-row" style="color:var(--accent);font-weight:700">sla <span style="color:var(--accent)">"PITR-1day" ⚠️</span></div>
+    </div>
+  </div>
+
+  <div class="callout c-blue">
+    <div class="c-icon">💡</div>
+    <div class="c-body">
+      <div class="c-title">Result of the diff above</div>
+      <p class="c-text">Terraform sees only ONE difference — <code>sla</code> changed from <code>PITR-1day</code> to <code>PITR-7day</code>. So it only calls the Tessell API to update that single field. Everything else is untouched. The DB is NOT recreated. This is idempotency — surgical precision, not brute force.</p>
+    </div>
+  </div>
+
+  <table class="comparison">
+    <tr>
+      <th>Tool</th>
+      <th>Approach</th>
+      <th>What happens on re-run?</th>
+    </tr>
+    <tr>
+      <td>Bash scripts</td>
+      <td>Imperative — step by step commands</td>
+      <td class="no">Creates duplicates or crashes</td>
+    </tr>
+    <tr>
+      <td>Ansible</td>
+      <td>Procedural config management</td>
+      <td>Mostly idempotent, but no real state</td>
+    </tr>
+    <tr>
+      <td>Terraform</td>
+      <td>Declarative desired state</td>
+      <td class="yes">Only changes what's different — always safe to re-run</td>
+    </tr>
+    <tr>
+      <td>Manual Console</td>
+      <td>Click-ops</td>
+      <td class="no">No automation, no repeatability, no history</td>
+    </tr>
+  </table>
+</div>
+
+<!-- THE BIG CODE -->
+<div class="section">
+  <div class="section-label">Comprehensive Example</div>
+  <h2>One Big File — <mark>Everything</mark> Terraform Can Do</h2>
+  <p class="lead">This single file demonstrates every major Terraform concept — providers, variables, locals, data sources, resources, dependencies, conditionals, loops, outputs, and lifecycle rules — all in one place with full comments.</p>
+
+  <div class="callout c-orange">
+    <div class="c-icon">📌</div>
+    <div class="c-body">
+      <div class="c-title">How to read this</div>
+      <p class="c-text">Each section is labeled with a concept name and number. Read top to bottom — each section builds on the previous. Every line that needs explanation has a comment. This is the "one file to understand Terraform" example.</p>
+    </div>
+  </div>
+
+  <div class="big-code-header">
+    <div>
+      <div class="big-code-title">complete-terraform-example.tf</div>
+      <div class="big-code-sub">tessell + azure + oracle · all concepts in one file</div>
+    </div>
+    <div class="big-code-tags">
+      <span class="bct">Providers</span>
+      <span class="bct">Variables</span>
+      <span class="bct">Locals</span>
+      <span class="bct">Data Sources</span>
+      <span class="bct">Resources</span>
+      <span class="bct">Loops</span>
+      <span class="bct">Conditionals</span>
+      <span class="bct">Outputs</span>
+      <span class="bct">Lifecycle</span>
+    </div>
+  </div>
+<pre class="big-code-body">
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 01 — TERRAFORM BLOCK
+ This is the root config block. It configures Terraform itself.
+ Here you declare: which providers you need, minimum Terraform version,
+ and where to store state (backend).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">terraform</span> {
+  <span class="fn">required_version</span> = <span class="str">">= 1.5.0"</span>          <span class="cm"># Minimum Terraform CLI version required</span>
+
+  <span class="fn">required_providers</span> {
+    <span class="fn">tessell</span> = {
+      <span class="attr">source</span>  = <span class="str">"tessell-cloud/tessell"</span>  <span class="cm"># Downloads from registry.terraform.io</span>
+      <span class="attr">version</span> = <span class="str">"~> 1.0"</span>                <span class="cm"># ~> means: 1.x but NOT 2.x (safe upgrades)</span>
+    }
+    <span class="cm"># You can have multiple providers — e.g., Azure for extra resources</span>
+    <span class="fn">azurerm</span> = {
+      <span class="attr">source</span>  = <span class="str">"hashicorp/azurerm"</span>
+      <span class="attr">version</span> = <span class="str">"~> 3.0"</span>
+    }
+  }
+
+  <span class="cm"># BACKEND: Where to store the state file</span>
+  <span class="cm"># Default (no backend block) = local terraform.tfstate file</span>
+  <span class="cm"># For teams, always use remote backend:</span>
+  <span class="fn">backend</span> <span class="str">"azurerm"</span> {
+    <span class="attr">resource_group_name</span>  = <span class="str">"terraform-state-rg"</span>
+    <span class="attr">storage_account_name</span> = <span class="str">"tfstatestorage"</span>   <span class="cm"># Azure Blob for shared state</span>
+    <span class="attr">container_name</span>       = <span class="str">"tfstate"</span>
+    <span class="attr">key</span>                  = <span class="str">"oracle-dev-qa.tfstate"</span>
+  }
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 02 — PROVIDERS
+ Providers are plugins. They are the bridge between your HCL code and
+ the cloud APIs. Each provider block configures one plugin.
+ You can have multiple provider configurations for the same provider
+ using the "alias" argument (e.g., two different Azure subscriptions).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="cm"># Provider 1: Tessell — manages Oracle DB provisioning</span>
+<span class="kw">provider</span> <span class="str">"tessell"</span> {
+  <span class="attr">api_address</span> = <span class="ref">var.tessell_api_address</span>
+  <span class="attr">tenant_id</span>   = <span class="ref">var.tessell_tenant_id</span>
+  <span class="attr">api_key</span>     = <span class="ref">var.tessell_api_key</span>
+}
+
+<span class="cm"># Provider 2: Azure — for things outside Tessell (Key Vault, monitoring, etc.)</span>
+<span class="kw">provider</span> <span class="str">"azurerm"</span> {
+  <span class="fn">features</span> {}                              <span class="cm"># Required empty block for azurerm</span>
+  <span class="attr">subscription_id</span> = <span class="ref">var.azure_subscription_id</span>
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 03 — VARIABLES
+ Variables are the inputs to your Terraform configuration.
+ They let you reuse the same code for different environments (dev/prod).
+ Types: string, number, bool, list, map, object, any
+ Sources: terraform.tfvars, env vars (TF_VAR_xxx), -var flag, defaults
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="cm"># ── Simple string variable ──</span>
+<span class="kw">variable</span> <span class="str">"tessell_api_address"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">description</span> = <span class="str">"Tessell API base URL"</span>
+  <span class="attr">default</span>     = <span class="str">"https://api.tessell.com"</span>  <span class="cm"># Default = optional, no tfvars needed</span>
+}
+
+<span class="cm"># ── Sensitive variable (hidden in all output) ──</span>
+<span class="kw">variable</span> <span class="str">"tessell_api_key"</span> {
+  <span class="attr">type</span>      = <span class="fn">string</span>
+  <span class="attr">sensitive</span> = <span class="bool">true</span>                        <span class="cm"># Redacts from plan/apply/output logs</span>
+}
+
+<span class="cm"># ── Variable with validation ──</span>
+<span class="kw">variable</span> <span class="str">"environment"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">description</span> = <span class="str">"Target environment: dev, staging, or prod"</span>
+  <span class="fn">validation</span> {
+    <span class="attr">condition</span>     = <span class="fn">contains</span>([<span class="str">"dev"</span>, <span class="str">"staging"</span>, <span class="str">"prod"</span>], <span class="ref">var.environment</span>)
+    <span class="attr">error_message</span> = <span class="str">"environment must be dev, staging, or prod."</span>
+  }
+}
+
+<span class="cm"># ── Boolean variable ──</span>
+<span class="kw">variable</span> <span class="str">"enable_ha"</span> {
+  <span class="attr">type</span>    = <span class="fn">bool</span>
+  <span class="attr">default</span> = <span class="bool">false</span>                          <span class="cm"># false for dev, true for prod</span>
+}
+
+<span class="cm"># ── List variable ──</span>
+<span class="kw">variable</span> <span class="str">"allowed_ips"</span> {
+  <span class="attr">type</span>    = <span class="fn">list</span>(<span class="fn">string</span>)                  <span class="cm"># List of strings</span>
+  <span class="attr">default</span> = []                            <span class="cm"># Empty list by default</span>
+}
+
+<span class="cm"># ── Object variable (grouped config) ──</span>
+<span class="kw">variable</span> <span class="str">"db_config"</span> {
+  <span class="attr">type</span> = <span class="fn">object</span>({
+    <span class="attr">name</span>     = <span class="fn">string</span>
+    <span class="attr">edition</span>  = <span class="fn">string</span>
+    <span class="attr">compute</span>  = <span class="fn">string</span>
+    <span class="attr">sla</span>      = <span class="fn">string</span>
+  })
+  <span class="attr">default</span> = {
+    <span class="attr">name</span>     = <span class="str">"oracle-dev"</span>
+    <span class="attr">edition</span>  = <span class="str">"STANDARD"</span>
+    <span class="attr">compute</span>  = <span class="str">"tesl_4_a"</span>
+    <span class="attr">sla</span>      = <span class="str">"PITR-1day"</span>
+  }
+}
+
+<span class="cm"># ── Map variable (for per-environment config) ──</span>
+<span class="kw">variable</span> <span class="str">"env_settings"</span> {
+  <span class="attr">type</span> = <span class="fn">map</span>(<span class="fn">object</span>({
+    <span class="attr">compute</span>        = <span class="fn">string</span>
+    <span class="attr">topology</span>       = <span class="fn">string</span>
+    <span class="attr">backup_sla</span>     = <span class="fn">string</span>
+    <span class="attr">deletion_prot</span>  = <span class="fn">bool</span>
+  }))
+  <span class="attr">default</span> = {
+    <span class="str">"dev"</span> = {
+      <span class="attr">compute</span>        = <span class="str">"tesl_4_a"</span>
+      <span class="attr">topology</span>       = <span class="str">"single_instance"</span>
+      <span class="attr">backup_sla</span>     = <span class="str">"PITR-1day"</span>
+      <span class="attr">deletion_prot</span>  = <span class="bool">false</span>
+    },
+    <span class="str">"staging"</span> = {
+      <span class="attr">compute</span>        = <span class="str">"tesl_8_a"</span>
+      <span class="attr">topology</span>       = <span class="str">"single_instance"</span>
+      <span class="attr">backup_sla</span>     = <span class="str">"PITR-3day"</span>
+      <span class="attr">deletion_prot</span>  = <span class="bool">false</span>
+    },
+    <span class="str">"prod"</span> = {
+      <span class="attr">compute</span>        = <span class="str">"tesl_16_a"</span>
+      <span class="attr">topology</span>       = <span class="str">"ha"</span>
+      <span class="attr">backup_sla</span>     = <span class="str">"PITR-7day"</span>
+      <span class="attr">deletion_prot</span>  = <span class="bool">true</span>
+    }
+  }
+}
+
+<span class="kw">variable</span> <span class="str">"tessell_tenant_id"</span>       { <span class="attr">type</span> = <span class="fn">string</span> }
+<span class="kw">variable</span> <span class="str">"azure_subscription_id"</span>   { <span class="attr">type</span> = <span class="fn">string</span> }
+<span class="kw">variable</span> <span class="str">"db_master_password"</span>      { <span class="attr">type</span> = <span class="fn">string</span>; <span class="attr">sensitive</span> = <span class="bool">true</span> }
+<span class="kw">variable</span> <span class="str">"vpc_name"</span>                { <span class="attr">type</span> = <span class="fn">string</span> }
+<span class="kw">variable</span> <span class="str">"azure_region"</span>            { <span class="attr">type</span> = <span class="fn">string</span>; <span class="attr">default</span> = <span class="str">"eastUS"</span> }
+<span class="kw">variable</span> <span class="str">"additional_db_names"</span>     { <span class="attr">type</span> = <span class="fn">list</span>(<span class="fn">string</span>); <span class="attr">default</span> = [] }
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 04 — LOCALS
+ Locals are computed values derived from variables or expressions.
+ They are NOT inputs — they are internal computed constants.
+ Use them to avoid repeating complex expressions throughout your code.
+ Think of them like "const" variables in JavaScript.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">locals</span> {
+  <span class="cm"># Pick settings based on current environment — like a switch statement</span>
+  <span class="attr">current_env</span>   = <span class="ref">var.env_settings</span>[<span class="ref">var.environment</span>]
+
+  <span class="cm"># Compute the DB name with environment suffix automatically</span>
+  <span class="attr">db_name</span>       = <span class="str">"${</span><span class="ref">var.db_config.name</span><span class="str">}-${</span><span class="ref">var.environment</span><span class="str">}"</span>
+
+  <span class="cm"># Dynamic topology based on enable_ha flag</span>
+  <span class="attr">topology</span>      = <span class="ref">var.enable_ha</span> ? <span class="str">"ha"</span> : <span class="str">"single_instance"</span>
+
+  <span class="cm"># Merge standard tags with environment-specific tags</span>
+  <span class="attr">common_tags</span> = {
+    <span class="str">"managed-by"</span>  = <span class="str">"terraform"</span>
+    <span class="str">"environment"</span> = <span class="ref">var.environment</span>
+    <span class="str">"team"</span>        = <span class="str">"engineering"</span>
+    <span class="str">"project"</span>     = <span class="str">"tessell-oracle"</span>
+  }
+
+  <span class="cm"># Boolean: is this a production environment?</span>
+  <span class="attr">is_production</span> = <span class="ref">var.environment</span> == <span class="str">"prod"</span>
+
+  <span class="cm"># Backup start time — earlier window in prod</span>
+  <span class="attr">backup_time</span>   = <span class="ref">local.is_production</span> ? <span class="str">"00:00"</span> : <span class="str">"02:00"</span>
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 05 — DATA SOURCES
+ Data sources READ existing infrastructure — they do NOT create anything.
+ Use them to look up resources that already exist (created outside Terraform,
+ or created by a different Terraform project).
+ Syntax: data "provider_type" "local_name" {}
+ Reference: data.provider_type.local_name.attribute
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="cm"># Look up an existing Azure Resource Group (not managed by this Terraform)</span>
+<span class="kw">data</span> <span class="str">"azurerm_resource_group"</span> <span class="str">"main"</span> {
+  <span class="attr">name</span> = <span class="str">"my-existing-resource-group"</span>    <span class="cm"># Must already exist in Azure</span>
+}
+
+<span class="cm"># Look up an existing Azure Key Vault secret for the DB password</span>
+<span class="kw">data</span> <span class="str">"azurerm_key_vault_secret"</span> <span class="str">"db_password"</span> {
+  <span class="attr">name</span>         = <span class="str">"oracle-master-password"</span>
+  <span class="attr">key_vault_id</span> = <span class="str">"/subscriptions/.../resourceGroups/.../vaults/my-kv"</span>
+  <span class="cm"># Now use: data.azurerm_key_vault_secret.db_password.value</span>
+  <span class="cm"># This fetches the secret at apply time — no password in .tf files!</span>
+}
+
+<span class="cm"># Fetch current client's IP dynamically (no need to hardcode IP in tfvars)</span>
+<span class="kw">data</span> <span class="str">"http"</span> <span class="str">"my_ip"</span> {
+  <span class="attr">url</span> = <span class="str">"https://ifconfig.me/ip"</span>        <span class="cm"># Returns your public IP as plain text</span>
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 06 — MAIN RESOURCE (Tessell Oracle DB)
+ This is where Terraform actually CREATES infrastructure.
+ Every argument here maps to a Tessell API field.
+ Terraform sends these values to the Tessell REST API on apply.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">resource</span> <span class="str">"tessell_db_service"</span> <span class="str">"oracle_primary"</span> {
+
+  <span class="cm"># ── Identity ─────────────────────────────────────────────────</span>
+  <span class="attr">name</span>         = <span class="ref">local.db_name</span>                <span class="cm"># e.g. "oracle-dev-dev"</span>
+  <span class="attr">description</span>  = <span class="str">"Oracle DB | env: ${</span><span class="ref">var.environment</span><span class="str">} | managed by Terraform"</span>
+  <span class="attr">subscription</span> = <span class="str">"default"</span>
+
+  <span class="cm"># ── Engine ───────────────────────────────────────────────────</span>
+  <span class="attr">engine_type</span>            = <span class="str">"ORACLE"</span>
+  <span class="attr">edition</span>                = <span class="ref">var.db_config.edition</span>    <span class="cm"># From object variable</span>
+  <span class="attr">topology</span>               = <span class="ref">local.topology</span>            <span class="cm"># Computed from local</span>
+  <span class="attr">software_image</span>         = <span class="str">"Oracle 19c SE2"</span>
+  <span class="attr">software_image_version</span> = <span class="str">"19.17.0.0.221018"</span>
+
+  <span class="cm"># ── Lifecycle Flags (env-aware) ──────────────────────────────</span>
+  <span class="attr">auto_minor_version_update</span>  = <span class="bool">true</span>
+  <span class="attr">enable_deletion_protection</span> = <span class="ref">local.current_env.deletion_prot</span>  <span class="cm"># true only in prod</span>
+  <span class="attr">enable_stop_protection</span>     = <span class="ref">local.is_production</span>               <span class="cm"># conditional</span>
+  <span class="attr">block_until_complete</span>       = <span class="bool">true</span>
+
+  <span class="cm"># ── Infrastructure (Azure) ───────────────────────────────────</span>
+  <span class="fn">infrastructure</span> {
+    <span class="attr">cloud</span>                  = <span class="str">"azure"</span>
+    <span class="attr">region</span>                 = <span class="ref">var.azure_region</span>
+    <span class="attr">availability_zone</span>      = <span class="val">null</span>
+    <span class="attr">vpc</span>                    = <span class="ref">var.vpc_name</span>
+    <span class="attr">compute_type</span>           = <span class="ref">local.current_env.compute</span>    <span class="cm"># Different per env</span>
+    <span class="attr">enable_encryption</span>      = <span class="bool">true</span>
+    <span class="attr">encryption_key</span>         = <span class="str">"default-encryption-key"</span>
+    <span class="attr">additional_storage</span>     = <span class="ref">local.is_production</span> ? <span class="val">100</span> : <span class="val">0</span> <span class="cm"># 100GB extra in prod</span>
+    <span class="attr">timezone</span>               = <span class="str">"Asia/Calcutta"</span>
+    <span class="attr">enable_compute_sharing</span> = !<span class="ref">local.is_production</span>            <span class="cm"># Share only in non-prod</span>
+  }
+
+  <span class="cm"># ── Network ──────────────────────────────────────────────────</span>
+  <span class="fn">service_connectivity</span> {
+    <span class="attr">service_port</span>         = <span class="str">"1521"</span>
+    <span class="attr">enable_public_access</span> = !<span class="ref">local.is_production</span>            <span class="cm"># Public only in dev/staging</span>
+    <span class="attr">enable_s_s_l</span>         = <span class="bool">true</span>
+    <span class="attr">allowed_ip_addresses</span> = <span class="fn">concat</span>(
+      <span class="ref">var.allowed_ips</span>,                                       <span class="cm"># IPs from tfvars</span>
+      [<span class="fn">trimspace</span>(<span class="ref">data.http.my_ip.response_body</span>)]             <span class="cm"># Your current IP (dynamic)</span>
+    )
+  }
+
+  <span class="cm"># ── Database ─────────────────────────────────────────────────</span>
+  <span class="fn">databases</span> {
+    <span class="attr">database_name</span>        = <span class="str">"PRIMARYDB"</span>
+    <span class="attr">database_description</span> = <span class="str">"Primary Oracle DB for ${</span><span class="ref">var.environment</span><span class="str">}"</span>
+    <span class="fn">database_configuration</span> {
+      <span class="fn">oracle_config</span> {}
+    }
+  }
+
+  <span class="cm"># ── Credentials ──────────────────────────────────────────────</span>
+  <span class="fn">creds</span> {
+    <span class="attr">master_user</span>     = <span class="str">"admin"</span>
+    <span class="cm"># Use Key Vault secret in prod, tfvars value in dev</span>
+    <span class="attr">master_password</span> = <span class="ref">local.is_production</span>
+      ? <span class="ref">data.azurerm_key_vault_secret.db_password.value</span>
+      : <span class="ref">var.db_master_password</span>
+  }
+
+  <span class="cm"># ── Backup ───────────────────────────────────────────────────</span>
+  <span class="fn">snapshot_configuration</span> {
+    <span class="attr">auto_snapshot</span>       = <span class="bool">true</span>
+    <span class="attr">sla</span>                 = <span class="ref">local.current_env.backup_sla</span>      <span class="cm"># Different SLA per env</span>
+    <span class="attr">snapshot_start_time</span> = <span class="ref">local.backup_time</span>                <span class="cm"># Computed from local</span>
+  }
+
+  <span class="cm"># ── Dynamic Tags from map ────────────────────────────────────</span>
+  <span class="cm"># dynamic block = loop inside a resource (like forEach in code)</span>
+  <span class="kw">dynamic</span> <span class="str">"tags"</span> {
+    <span class="attr">for_each</span> = <span class="ref">local.common_tags</span>          <span class="cm"># Iterates over the tags map</span>
+    <span class="fn">content</span> {
+      <span class="attr">name</span>  = <span class="ref">tags.key</span>                    <span class="cm"># e.g. "environment"</span>
+      <span class="attr">value</span> = <span class="ref">tags.value</span>                  <span class="cm"># e.g. "dev"</span>
+    }
+  }
+
+  <span class="cm"># ── Lifecycle Rules ──────────────────────────────────────────</span>
+  <span class="cm"># These control HOW Terraform manages changes to this resource</span>
+  <span class="fn">lifecycle</span> {
+    <span class="cm"># If any of these attributes change, Terraform updates in-place (not destroy+recreate)</span>
+    <span class="attr">ignore_changes</span> = [
+      <span class="attr">description</span>,                         <span class="cm"># Don't care if description drifts</span>
+    ]
+    <span class="cm"># Prevents accidental destruction of this resource in production</span>
+    <span class="attr">prevent_destroy</span> = <span class="bool">false</span>               <span class="cm"># Set true for critical prod DBs</span>
+
+    <span class="cm"># create_before_destroy: spin up replacement BEFORE destroying old one</span>
+    <span class="cm"># Useful for zero-downtime changes. Not always supported by providers.</span>
+    <span class="attr">create_before_destroy</span> = <span class="bool">false</span>
+  }
+
+  <span class="cm"># ── Explicit Dependency ──────────────────────────────────────</span>
+  <span class="cm"># Tells Terraform: provision this DB only AFTER the Azure RG is confirmed</span>
+  <span class="attr">depends_on</span> = [<span class="ref">data.azurerm_resource_group.main</span>]
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 07 — LOOPS: for_each
+ for_each lets you create MULTIPLE resources from a list or map.
+ Instead of copy-pasting the same resource block 5 times,
+ use for_each to loop over a collection.
+ Each iteration creates a SEPARATE independent resource.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="cm"># Create one additional DB service for each name in the list</span>
+<span class="cm"># e.g., var.additional_db_names = ["reporting", "analytics"]</span>
+<span class="cm"># → Creates: tessell_db_service.oracle_extra["reporting"]</span>
+<span class="cm"># →          tessell_db_service.oracle_extra["analytics"]</span>
+<span class="kw">resource</span> <span class="str">"tessell_db_service"</span> <span class="str">"oracle_extra"</span> {
+  <span class="attr">for_each</span> = <span class="fn">toset</span>(<span class="ref">var.additional_db_names</span>) <span class="cm"># toset() deduplicates the list</span>
+
+  <span class="attr">name</span>         = <span class="str">"oracle-${</span><span class="ref">each.key</span><span class="str">}-${</span><span class="ref">var.environment</span><span class="str">}"</span>
+  <span class="attr">description</span>  = <span class="str">"Additional Oracle DB: ${</span><span class="ref">each.key</span><span class="str">}"</span>
+  <span class="attr">subscription</span> = <span class="str">"default"</span>
+  <span class="attr">engine_type</span>  = <span class="str">"ORACLE"</span>
+  <span class="attr">edition</span>      = <span class="str">"STANDARD"</span>
+  <span class="attr">topology</span>     = <span class="str">"single_instance"</span>
+  <span class="attr">software_image</span>         = <span class="str">"Oracle 19c SE2"</span>
+  <span class="attr">software_image_version</span> = <span class="str">"19.17.0.0.221018"</span>
+  <span class="attr">block_until_complete</span>   = <span class="bool">true</span>
+
+  <span class="fn">infrastructure</span> {
+    <span class="attr">cloud</span>        = <span class="str">"azure"</span>
+    <span class="attr">region</span>       = <span class="ref">var.azure_region</span>
+    <span class="attr">vpc</span>          = <span class="ref">var.vpc_name</span>
+    <span class="attr">compute_type</span> = <span class="str">"tesl_4_a"</span>
+    <span class="attr">enable_encryption</span>     = <span class="bool">true</span>
+    <span class="attr">encryption_key</span>        = <span class="str">"default-encryption-key"</span>
+    <span class="attr">timezone</span>              = <span class="str">"Asia/Calcutta"</span>
+    <span class="attr">enable_compute_sharing</span>= <span class="bool">true</span>
+  }
+
+  <span class="fn">service_connectivity</span> {
+    <span class="attr">service_port</span>          = <span class="str">"1521"</span>
+    <span class="attr">enable_public_access</span>  = <span class="bool">true</span>
+    <span class="attr">enable_s_s_l</span>          = <span class="bool">true</span>
+    <span class="attr">allowed_ip_addresses</span>  = [<span class="fn">trimspace</span>(<span class="ref">data.http.my_ip.response_body</span>)]
+  }
+
+  <span class="fn">databases</span> {
+    <span class="attr">database_name</span>         = <span class="fn">upper</span>(<span class="fn">substr</span>(<span class="ref">each.key</span>, <span class="val">0</span>, <span class="val">8</span>)) <span class="cm"># Oracle SID max 8 chars</span>
+    <span class="attr">database_description</span>  = <span class="str">"DB for ${</span><span class="ref">each.key</span><span class="str">} workload"</span>
+    <span class="fn">database_configuration</span> { <span class="fn">oracle_config</span> {} }
+  }
+
+  <span class="fn">creds</span> {
+    <span class="attr">master_user</span>     = <span class="str">"admin"</span>
+    <span class="attr">master_password</span> = <span class="ref">var.db_master_password</span>
+  }
+
+  <span class="fn">snapshot_configuration</span> {
+    <span class="attr">auto_snapshot</span>       = <span class="bool">true</span>
+    <span class="attr">sla</span>                 = <span class="str">"PITR-1day"</span>
+    <span class="attr">snapshot_start_time</span> = <span class="str">"03:00"</span>
+  }
+}
+
+
+<span class="line-section">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ CONCEPT 08 — OUTPUTS
+ Outputs expose values after terraform apply completes.
+ Uses:
+   1. Print connection info to the terminal
+   2. Pass values to other Terraform modules (module composition)
+   3. Use in CI/CD scripts via: terraform output -raw db_service_id
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="kw">output</span> <span class="str">"primary_db_id"</span> {
+  <span class="attr">description</span> = <span class="str">"UUID of the primary Oracle DB service"</span>
+  <span class="attr">value</span>       = <span class="ref">tessell_db_service.oracle_primary.id</span>
+}
+
+<span class="kw">output</span> <span class="str">"primary_db_status"</span> {
+  <span class="attr">description</span> = <span class="str">"Provisioning status — READY means fully available"</span>
+  <span class="attr">value</span>       = <span class="ref">tessell_db_service.oracle_primary.status</span>
+}
+
+<span class="kw">output</span> <span class="str">"primary_db_name"</span> {
+  <span class="attr">value</span> = <span class="ref">tessell_db_service.oracle_primary.name</span>
+}
+
+<span class="cm"># Output a map of all extra DB names → their IDs (from for_each resource)</span>
+<span class="kw">output</span> <span class="str">"extra_db_ids"</span> {
+  <span class="attr">description</span> = <span class="str">"Map of extra DB name to service ID"</span>
+  <span class="attr">value</span>       = { <span class="attr">for</span> k, v <span class="attr">in</span> <span class="ref">tessell_db_service.oracle_extra</span> : k => v.id }
+}
+
+<span class="cm"># Sensitive output — value is hidden in terminal but stored in state</span>
+<span class="kw">output</span> <span class="str">"db_master_user"</span> {
+  <span class="attr">value</span>     = <span class="str">"admin"</span>
+  <span class="attr">sensitive</span> = <span class="bool">false</span>
+}
+
+<span class="cm"># Summary output — build a useful connection string</span>
+<span class="kw">output</span> <span class="str">"jdbc_hint"</span> {
+  <span class="attr">description</span> = <span class="str">"JDBC format hint — replace HOST with endpoint from Tessell Console"</span>
+  <span class="attr">value</span>       = <span class="str">"jdbc:oracle:thin:@HOST:1521:PRIMARYDB"</span>
+}
+
+<span class="kw">output</span> <span class="str">"environment_summary"</span> {
+  <span class="attr">description</span> = <span class="str">"Summary of what was deployed"</span>
+  <span class="attr">value</span> = {
+    <span class="attr">environment</span>   = <span class="ref">var.environment</span>
+    <span class="attr">region</span>        = <span class="ref">var.azure_region</span>
+    <span class="attr">compute</span>       = <span class="ref">local.current_env.compute</span>
+    <span class="attr">topology</span>      = <span class="ref">local.topology</span>
+    <span class="attr">backup_sla</span>    = <span class="ref">local.current_env.backup_sla</span>
+    <span class="attr">is_production</span> = <span class="ref">local.is_production</span>
+    <span class="attr">extra_dbs</span>     = <span class="ref">var.additional_db_names</span>
+  }
+}
+</pre>
+
+  <div class="callout c-green" style="margin-top:2rem">
+    <div class="c-icon">✅</div>
+    <div class="c-body">
+      <div class="c-title">What this one file demonstrates</div>
+      <p class="c-text">
+        <strong>Providers</strong> — multi-provider setup (Tessell + Azure) with versioning ·
+        <strong>Backend</strong> — remote state in Azure Blob ·
+        <strong>Variables</strong> — string, bool, list, map, object, sensitive, with validation ·
+        <strong>Locals</strong> — computed values, conditionals as locals, string interpolation ·
+        <strong>Data Sources</strong> — read existing Azure RG, Key Vault secrets, dynamic IP fetch ·
+        <strong>Resources</strong> — full Tessell Oracle DB with all blocks ·
+        <strong>Conditionals</strong> — ternary expressions for env-aware config ·
+        <strong>Dynamic blocks</strong> — loop inside a resource for tags ·
+        <strong>for_each</strong> — create multiple DB services from a list ·
+        <strong>Lifecycle rules</strong> — ignore_changes, prevent_destroy ·
+        <strong>depends_on</strong> — explicit resource ordering ·
+        <strong>Outputs</strong> — simple, map, sensitive, computed summary
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- FINAL COMPARISON -->
+<div class="section">
+  <div class="section-label">The Big Picture</div>
+  <h2>Terraform vs Everything Else</h2>
+  <p class="lead">Where does Terraform fit in the toolchain? What does it replace vs what it works alongside?</p>
+
+  <table class="comparison">
+    <tr>
+      <th>Tool</th>
+      <th>What it does</th>
+      <th>Works with Terraform?</th>
+    </tr>
+    <tr>
+      <td>Terraform</td>
+      <td>Provisions infrastructure (VMs, DBs, networks) and manages their lifecycle</td>
+      <td class="yes">This IS Terraform</td>
+    </tr>
+    <tr>
+      <td>Ansible</td>
+      <td>Configures software INSIDE servers (install packages, edit files, run services)</td>
+      <td class="yes">Yes — Terraform creates the server, Ansible configures it</td>
+    </tr>
+    <tr>
+      <td>Docker / Kubernetes</td>
+      <td>Runs application containers</td>
+      <td class="yes">Yes — Terraform can provision the K8s cluster itself</td>
+    </tr>
+    <tr>
+      <td>GitHub Actions / Jenkins</td>
+      <td>CI/CD pipeline automation</td>
+      <td class="yes">Yes — run terraform apply inside a pipeline</td>
+    </tr>
+    <tr>
+      <td>Azure Portal (click-ops)</td>
+      <td>Manual resource creation via browser UI</td>
+      <td class="no">Replaced by Terraform — not repeatable or trackable</td>
+    </tr>
+    <tr>
+      <td>Bash scripts + az CLI</td>
+      <td>Scripted resource creation</td>
+      <td class="no">Mostly replaced — scripts have no state management or idempotency</td>
+    </tr>
+    <tr>
+      <td>Pulumi</td>
+      <td>Infrastructure as Code using real programming languages (Python, TS)</td>
+      <td class="no">Alternative to Terraform, not used alongside it</td>
+    </tr>
+  </table>
+</div>
+
+</div><!-- /wrap -->
+
+<footer>
+  <div class="wrap">
+    <h3>Now You Know What Terraform Actually Does.</h3>
+    <p>It doesn't just write code — it <strong>declares, provisions, tracks, and syncs</strong> real cloud infrastructure.</p>
+  </div>
+</footer>
+
+</body>
+</html>

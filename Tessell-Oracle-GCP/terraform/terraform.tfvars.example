@@ -1,0 +1,8 @@
+# Copy this file to terraform.tfvars and fill in your actual values
+# DO NOT commit terraform.tfvars to Git!
+
+api_address        = "https://api.tessell.com"
+tenant_id          = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # Get from Tessell Console → Settings
+api_key            = "your-api-key-here"                      # Get from Tessell Console → Profile → API Keys
+allowed_ip         = "0.0.0.0"                                # Run: curl ifconfig.me
+db_master_password = "ChangeMe123!"                           # Min 12 chars, mixed case + numbers + symbols

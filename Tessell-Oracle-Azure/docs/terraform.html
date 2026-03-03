@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tessell Terraform — Complete Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d47;
+    --accent: #3b82f6;
+    --accent2: #06b6d4;
+    --accent3: #8b5cf6;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --code-bg: #0d1117;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 5rem 0 4rem;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), var(--accent3), transparent);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.3);
+    color: var(--accent2);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.8rem;
+    border-radius: 100px;
+    margin-bottom: 1.5rem;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--accent2);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.2rem;
+  }
+
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    color: var(--muted);
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin-bottom: 2rem;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+
+  .meta-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin: 3rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .toc::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+    background: linear-gradient(180deg, var(--accent), var(--accent3));
+    border-radius: 4px 0 0 4px;
+  }
+
+  .toc-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.2rem;
+  }
+
+  .toc-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem;
+    list-style: none;
+  }
+
+  .toc-list a {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+
+  .toc-list a:hover {
+    background: rgba(59,130,246,0.1);
+    color: var(--accent2);
+  }
+
+  .toc-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 24px;
+  }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow-section {
+    margin: 4rem 0;
+  }
+
+  .flow-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    text-align: center;
+    min-width: 130px;
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .flow-node:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+  }
+
+  .flow-node-icon {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .flow-node-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+  }
+
+  .flow-node-sub {
+    font-size: 0.65rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .flow-arrow {
+    color: var(--accent);
+    font-size: 1.5rem;
+    padding: 0 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    margin: 5rem 0;
+    scroll-margin-top: 2rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.2);
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    margin-top: 0.3rem;
+    white-space: nowrap;
+  }
+
+  .section h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.4rem;
+  }
+
+  .section-desc {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  /* ── FILE CARD ── */
+  .file-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+
+  .file-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    gap: 1rem;
+  }
+
+  .file-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .file-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .file-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--accent2);
+  }
+
+  .file-purpose {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.1rem;
+  }
+
+  .file-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.65rem;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  .badge-required { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-secret { background: rgba(245,158,11,0.15); color: var(--orange); border: 1px solid rgba(245,158,11,0.3); }
+  .badge-config { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-output { background: rgba(139,92,246,0.15); color: var(--accent3); border: 1px solid rgba(139,92,246,0.3); }
+
+  .file-body {
+    padding: 1.5rem;
+  }
+
+  /* ── CODE BLOCK ── */
+  .code-wrap {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1rem 0;
+    position: relative;
+  }
+
+  .code-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .code-dots span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  .code-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  pre {
+    padding: 1.5rem;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    color: #abb2bf;
+  }
+
+  /* Syntax highlight colors */
+  .kw { color: #c678dd; } /* keyword: resource, variable */
+  .str { color: #98c379; } /* string */
+  .cm { color: #5c6370; font-style: italic; } /* comment */
+  .attr { color: #e06c75; } /* attribute */
+  .val { color: #d19a66; } /* values/numbers */
+  .fn { color: #61afef; } /* function/block names */
+  .bool { color: #56b6c2; } /* true/false */
+  .ref { color: #e5c07b; } /* var.xxx references */
+
+  /* ── EXPLAIN BLOCKS ── */
+  .explain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  @media (max-width: 700px) {
+    .explain-grid { grid-template-columns: 1fr; }
+    .flow-diagram { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+  }
+
+  .explain-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+  }
+
+  .explain-card.info { border-left: 3px solid var(--accent); }
+  .explain-card.warn { border-left: 3px solid var(--orange); }
+  .explain-card.good { border-left: 3px solid var(--green); }
+  .explain-card.tip  { border-left: 3px solid var(--accent3); }
+
+  .explain-card h4 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.6rem;
+  }
+
+  .info h4 { color: var(--accent); }
+  .warn h4 { color: var(--orange); }
+  .good h4 { color: var(--green); }
+  .tip  h4 { color: var(--accent3); }
+
+  .explain-card p {
+    font-size: 0.83rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .explain-card code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--accent2);
+  }
+
+  /* ── PARAM TABLE ── */
+  .param-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    margin: 1rem 0;
+  }
+
+  .param-table th {
+    text-align: left;
+    padding: 0.7rem 1rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .param-table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .param-table tr:hover td {
+    background: rgba(59,130,246,0.03);
+  }
+
+  .param-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent2);
+    font-size: 0.77rem;
+    white-space: nowrap;
+  }
+
+  .param-table td:nth-child(2) {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--green);
+    font-size: 0.77rem;
+  }
+
+  .param-table td:last-child {
+    color: var(--muted);
+  }
+
+  /* ── CALLOUT ── */
+  .callout {
+    display: flex;
+    gap: 1rem;
+    padding: 1.2rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem 0;
+    align-items: flex-start;
+  }
+
+  .callout-warn { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); }
+  .callout-info { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); }
+  .callout-good { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); }
+
+  .callout-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 0.1rem; }
+
+  .callout-body { flex: 1; }
+  .callout-title { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.3rem; }
+  .callout-warn .callout-title { color: var(--orange); }
+  .callout-info .callout-title { color: var(--accent2); }
+  .callout-good .callout-title { color: var(--green); }
+  .callout-text { font-size: 0.83rem; color: var(--muted); }
+  .callout-text code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    background: rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    color: var(--accent2);
+  }
+
+  /* ── BLOCK ANNOTATION ── */
+  .annotated {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .annotated { grid-template-columns: 1fr; }
+  }
+
+  .annotation-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .annotation-item {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+  }
+
+  .ann-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--accent);
+    color: white;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+
+  .ann-text {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .ann-text strong { color: var(--text); }
+
+  /* ── LIFECYCLE ── */
+  .lifecycle {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .lifecycle-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .lifecycle-step::after {
+    content: '→';
+    position: absolute;
+    right: -0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .lifecycle-step:last-child::after { display: none; }
+
+  .lifecycle-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+  .lifecycle-label { font-size: 0.78rem; font-weight: 700; margin-bottom: 0.2rem; }
+  .lifecycle-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent2);
+    background: rgba(6,182,212,0.1);
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  /* ── INFRA BLOCK ── */
+  .infra-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .infra-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    transition: border-color 0.2s;
+  }
+
+  .infra-card:hover { border-color: var(--accent); }
+  .infra-card-icon { font-size: 1.4rem; margin-bottom: 0.6rem; }
+  .infra-card-title { font-size: 0.82rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .infra-card-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent2);
+    margin-bottom: 0.3rem;
+  }
+  .infra-card-why { font-size: 0.75rem; color: var(--muted); }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 3rem 0;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 3rem 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .inline-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: rgba(255,255,255,0.06);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    color: var(--accent2);
+    border: 1px solid var(--border);
+  }
+
+  p { margin-bottom: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+  h3 { font-size: 1.1rem; font-weight: 700; margin: 1.5rem 0 0.8rem; color: var(--text); }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 100px;
+    margin-right: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .tag-azure { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+  .tag-oracle { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+  .tag-devqa { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="badge"><div class="badge-dot"></div> Deep Dive Guide</div>
+    <h1>Tessell + Terraform<br><span>Complete File-by-File</span><br>Breakdown</h1>
+    <p class="hero-sub">Every block, every parameter, every decision explained — for developers who know the basics and want to understand the full picture.</p>
+    <div class="hero-meta">
+      <div class="meta-item">
+        <div class="meta-dot" style="background:var(--red)"></div>
+        <span class="tag tag-oracle">Oracle 19c SE2</span>
+      </div>
+      <div class="meta-item">
+        <div class="meta-dot" style="background:var(--accent)"></div>
+        <span class="tag tag-azure">Azure eastUS</span>
+      </div>
+      <div class="meta-item">
+        <div class="meta-dot" style="background:var(--green)"></div>
+        <span class="tag tag-devqa">Dev / QA Env</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-title">📋 Table of Contents</div>
+    <ul class="toc-list">
+      <li><a href="#flow"><span class="toc-num">00</span> How It All Works</a></li>
+      <li><a href="#provider"><span class="toc-num">01</span> provider.tf</a></li>
+      <li><a href="#variables"><span class="toc-num">02</span> variables.tf</a></li>
+      <li><a href="#tfvars"><span class="toc-num">03</span> terraform.tfvars</a></li>
+      <li><a href="#main"><span class="toc-num">04</span> main.tf — Full Deep Dive</a></li>
+      <li><a href="#infra"><span class="toc-num">05</span> infrastructure block</a></li>
+      <li><a href="#connectivity"><span class="toc-num">06</span> service_connectivity block</a></li>
+      <li><a href="#databases"><span class="toc-num">07</span> databases block</a></li>
+      <li><a href="#creds"><span class="toc-num">08</span> creds + snapshot</a></li>
+      <li><a href="#outputs"><span class="toc-num">09</span> outputs.tf</a></li>
+      <li><a href="#lifecycle"><span class="toc-num">10</span> Terraform Lifecycle</a></li>
+    </ul>
+  </div>
+
+  <!-- SECTION 00: HOW IT ALL WORKS -->
+  <div class="section" id="flow">
+    <div class="section-header">
+      <div class="section-num">00</div>
+      <div>
+        <h2>How It All Works Together</h2>
+        <p class="section-desc">Before diving into files — understand the full execution chain.</p>
+      </div>
+    </div>
+
+    <div class="flow-section">
+      <div class="flow-diagram">
+        <div class="flow-node">
+          <div class="flow-node-icon">📝</div>
+          <div class="flow-node-label">Your .tf Files</div>
+          <div class="flow-node-sub">provider + main + vars</div>
+        </div>
+        <div class="flow-arrow">──►</div>
+        <div class="flow-node">
+          <div class="flow-node-icon">⚙️</div>
+          <div class="flow-node-label">terraform apply</div>
+          <div class="flow-node-sub">local CLI command</div>
+        </div>
+        <div class="flow-arrow">──►</div>
+        <div class="flow-node">
+          <div class="flow-node-icon">🔌</div>
+          <div class="flow-node-label">Tessell Provider</div>
+          <div class="flow-node-sub">tessell-cloud/tessell</div>
+        </div>
+        <div class="flow-arrow">──►</div>
+        <div class="flow-node">
+          <div class="flow-node-icon">🌐</div>
+          <div class="flow-node-label">Tessell API</div>
+          <div class="flow-node-sub">api.tessell.com</div>
+        </div>
+        <div class="flow-arrow">──►</div>
+        <div class="flow-node">
+          <div class="flow-node-icon">☁️</div>
+          <div class="flow-node-label">Azure + Oracle</div>
+          <div class="flow-node-sub">DB is READY ✅</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="explain-grid">
+      <div class="explain-card info">
+        <h4>🔧 What Terraform Does</h4>
+        <p>Terraform reads your <code>.tf</code> files, compares desired state with current state (<code>.tfstate</code>), then calls the Tessell provider plugin to make the API requests needed to reach the desired state.</p>
+      </div>
+      <div class="explain-card tip">
+        <h4>🔌 What the Provider Does</h4>
+        <p>The <code>tessell-cloud/tessell</code> provider is a plugin that knows how to translate your HCL resource blocks into Tessell REST API calls — you don't call the API directly.</p>
+      </div>
+      <div class="explain-card good">
+        <h4>📦 What <code>.tfstate</code> Is</h4>
+        <p>After apply, Terraform writes a <code>terraform.tfstate</code> file — a JSON snapshot of every resource it created. This is how Terraform knows what already exists. <strong>Never delete it.</strong></p>
+      </div>
+      <div class="explain-card warn">
+        <h4>⚠️ Idempotency</h4>
+        <p>If you run <code>terraform apply</code> twice on the same config, it won't create a duplicate DB — Terraform compares state first and only changes what's different.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 01: provider.tf -->
+  <div class="section" id="provider">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <div>
+        <h2>provider.tf</h2>
+        <p class="section-desc">The authentication and plugin setup — first file Terraform reads.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(59,130,246,0.15)">🔌</div>
+          <div>
+            <div class="file-name">provider.tf</div>
+            <div class="file-purpose">Tells Terraform which plugin to use and how to authenticate with Tessell</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Required</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots">
+              <span style="background:#ff5f57"></span>
+              <span style="background:#febc2e"></span>
+              <span style="background:#28c840"></span>
+            </div>
+            <span class="code-label">provider.tf</span>
+          </div>
+<pre>
+<span class="kw">terraform</span> {                              <span class="cm"># ① Root terraform block</span>
+  <span class="fn">required_providers</span> {
+    <span class="fn">tessell</span> = {                          <span class="cm"># ② Local name you use in this project</span>
+      <span class="attr">source</span> = <span class="str">"tessell-cloud/tessell"</span>  <span class="cm"># ③ Registry: namespace/provider-name</span>
+    }
+  }
+}
+
+<span class="kw">provider</span> <span class="str">"tessell"</span> {                      <span class="cm"># ④ Configure the tessell provider</span>
+  <span class="attr">api_address</span> = <span class="ref">var.api_address</span>         <span class="cm"># ⑤ Tessell API base URL</span>
+  <span class="attr">tenant_id</span>   = <span class="ref">var.tenant_id</span>           <span class="cm"># ⑥ Your org's unique ID</span>
+  <span class="attr">api_key</span>     = <span class="ref">var.api_key</span>             <span class="cm"># ⑦ Your personal auth key</span>
+}
+</pre>
+        </div>
+
+        <ul class="annotation-list">
+          <li class="annotation-item">
+            <div class="ann-num">①</div>
+            <div class="ann-text"><strong>terraform {}</strong> is the meta-block that configures Terraform itself — not your resources. It's where you declare provider requirements, backend config, and required Terraform version.</div>
+          </li>
+          <li class="annotation-item">
+            <div class="ann-num">②</div>
+            <div class="ann-text"><strong>tessell</strong> (the local name) is what you reference in your <code>provider "tessell"</code> block and in resources like <code>tessell_db_service</code>. It's just a local alias.</div>
+          </li>
+          <li class="annotation-item">
+            <div class="ann-num">③</div>
+            <div class="ann-text"><strong>source = "tessell-cloud/tessell"</strong> tells Terraform to download the plugin from the public Terraform Registry at <code>registry.terraform.io/providers/tessell-cloud/tessell</code> during <code>terraform init</code>.</div>
+          </li>
+          <li class="annotation-item">
+            <div class="ann-num">④</div>
+            <div class="ann-text"><strong>provider "tessell" {}</strong> configures the downloaded plugin — passes authentication credentials so every API call the provider makes is authenticated.</div>
+          </li>
+          <li class="annotation-item">
+            <div class="ann-num">⑤⑥⑦</div>
+            <div class="ann-text"><strong>var.xxx</strong> references pull values from <code>variables.tf</code> + <code>terraform.tfvars</code>. Never hardcode credentials directly here — they'd be in your git history forever.</div>
+          </li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div class="callout-body">
+            <div class="callout-title">Why separate provider config from resources?</div>
+            <p class="callout-text">The <code>provider.tf</code> / <code>main.tf</code> split is a convention, not enforced by Terraform. Terraform merges all <code>.tf</code> files in the directory. The split keeps auth config separate from resource definitions — cleaner and easier to reuse across projects by swapping just <code>provider.tf</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 02: variables.tf -->
+  <div class="section" id="variables">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <div>
+        <h2>variables.tf</h2>
+        <p class="section-desc">Declares the shape of inputs — types, descriptions, and validation. No actual values here.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(16,185,129,0.15)">📐</div>
+          <div>
+            <div class="file-name">variables.tf</div>
+            <div class="file-purpose">Declares all input variables — types and descriptions only, no values</div>
+          </div>
+        </div>
+        <span class="file-badge badge-config">Config</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots">
+              <span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span>
+            </div>
+            <span class="code-label">variables.tf</span>
+          </div>
+<pre>
+<span class="kw">variable</span> <span class="str">"api_address"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">description</span> = <span class="str">"Tessell API endpoint URL"</span>
+}
+
+<span class="kw">variable</span> <span class="str">"tenant_id"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">description</span> = <span class="str">"Your Tessell Tenant UUID"</span>
+}
+
+<span class="kw">variable</span> <span class="str">"api_key"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">sensitive</span>   = <span class="bool">true</span>          <span class="cm"># ① Redacts value from all Terraform output</span>
+  <span class="attr">description</span> = <span class="str">"Tessell API Key"</span>
+}
+
+<span class="kw">variable</span> <span class="str">"allowed_ip"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">description</span> = <span class="str">"Your machine IP to whitelist for DB access"</span>
+
+  <span class="fn">validation</span> {                    <span class="cm"># ② Optional: enforce IPv4 format</span>
+    <span class="attr">condition</span>     = <span class="fn">can</span>(<span class="fn">regex</span>(<span class="str">"^(\\d{1,3}\\.){3}\\d{1,3}$"</span>, <span class="ref">var.allowed_ip</span>))
+    <span class="attr">error_message</span> = <span class="str">"Must be a valid IPv4 address."</span>
+  }
+}
+
+<span class="kw">variable</span> <span class="str">"db_master_password"</span> {
+  <span class="attr">type</span>        = <span class="fn">string</span>
+  <span class="attr">sensitive</span>   = <span class="bool">true</span>
+  <span class="attr">description</span> = <span class="str">"Oracle master user password"</span>
+}
+</pre>
+        </div>
+
+        <table class="param-table" style="margin-top:1.5rem">
+          <tr>
+            <th>Variable</th><th>Type</th><th>Sensitive?</th><th>Why it exists</th>
+          </tr>
+          <tr>
+            <td>api_address</td><td>string</td><td>No</td>
+            <td>Tessell API base URL — can vary per tenant/environment</td>
+          </tr>
+          <tr>
+            <td>tenant_id</td><td>string</td><td>No</td>
+            <td>Your org's unique UUID — namespaces all resources</td>
+          </tr>
+          <tr>
+            <td>api_key</td><td>string</td><td>✅ Yes</td>
+            <td>Personal auth token — marks as sensitive to hide in logs/output</td>
+          </tr>
+          <tr>
+            <td>allowed_ip</td><td>string</td><td>No</td>
+            <td>Your IP for firewall whitelist — changes machine to machine</td>
+          </tr>
+          <tr>
+            <td>db_master_password</td><td>string</td><td>✅ Yes</td>
+            <td>Oracle admin password — sensitive to prevent exposure</td>
+          </tr>
+        </table>
+
+        <div class="explain-grid" style="margin-top:1rem">
+          <div class="explain-card info">
+            <h4>① sensitive = true</h4>
+            <p>This doesn't encrypt the value — it only prevents Terraform from printing it in <code>plan</code>, <code>apply</code>, and <code>output</code>. The value is still stored in plaintext in <code>.tfstate</code>. Always encrypt your state file in production.</p>
+          </div>
+          <div class="explain-card tip">
+            <h4>② validation blocks</h4>
+            <p>Optional but powerful — catches bad input before Terraform even calls the API. Use <code>can()</code> + <code>regex()</code> for format checks. Run during <code>terraform plan</code> so you fail fast, not after 10 min wait.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 03: terraform.tfvars -->
+  <div class="section" id="tfvars">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <div>
+        <h2>terraform.tfvars</h2>
+        <p class="section-desc">The actual values for your variables. The most sensitive file in the project.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(245,158,11,0.15)">🔐</div>
+          <div>
+            <div class="file-name">terraform.tfvars</div>
+            <div class="file-purpose">Actual secret values — MUST be in .gitignore</div>
+          </div>
+        </div>
+        <span class="file-badge badge-secret">⚠ Secret</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">terraform.tfvars</span>
+          </div>
+<pre>
+api_address        = <span class="str">"https://api.tessell.com"</span>
+tenant_id          = <span class="str">"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"</span>  <span class="cm"># UUID from Tessell Console</span>
+api_key            = <span class="str">"tsl_xxxxxxxxxxxxxxxxxxxxx"</span>              <span class="cm"># From Profile → API Keys</span>
+allowed_ip         = <span class="str">"103.45.12.200"</span>                          <span class="cm"># Run: curl ifconfig.me</span>
+db_master_password = <span class="str">"MyStr0ng@Password123"</span>                    <span class="cm"># Min 12 chars recommended</span>
+</pre>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-icon">⚠️</div>
+          <div class="callout-body">
+            <div class="callout-title">Critical — Add to .gitignore immediately</div>
+            <p class="callout-text">Run this right now: <code>echo "terraform.tfvars" >> .gitignore</code><br>
+            Also add: <code>*.tfstate</code>, <code>*.tfstate.backup</code>, <code>.terraform/</code><br>
+            If you accidentally commit <code>terraform.tfvars</code>, rotate all your API keys immediately — git history is permanent.</p>
+          </div>
+        </div>
+
+        <h3>Alternatives to .tfvars (for teams / CI)</h3>
+        <table class="param-table">
+          <tr><th>Method</th><th>How</th><th>Best For</th></tr>
+          <tr>
+            <td>Environment Variables</td>
+            <td><code>export TF_VAR_api_key="xyz"</code></td>
+            <td>CI/CD pipelines (GitHub Actions secrets)</td>
+          </tr>
+          <tr>
+            <td>-var flag</td>
+            <td><code>terraform apply -var="api_key=xyz"</td>
+            <td>One-off overrides during testing</td>
+          </tr>
+          <tr>
+            <td>HashiCorp Vault</td>
+            <td>Vault provider + dynamic secrets</td>
+            <td>Enterprise/production environments</td>
+          </tr>
+          <tr>
+            <td>Azure Key Vault</td>
+            <td>data source lookup at apply time</td>
+            <td>Azure-native secret management</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 04: main.tf -->
+  <div class="section" id="main">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <div>
+        <h2>main.tf — Top-Level Resource Block</h2>
+        <p class="section-desc">The core file. Every top-level parameter in <span class="inline-code">tessell_db_service</span> explained.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(239,68,68,0.15)">🏗️</div>
+          <div>
+            <div class="file-name">main.tf — Identity + Engine Block</div>
+            <div class="file-purpose">What the DB is called, what it runs, and how it's deployed</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Core</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">main.tf — section 1/6: identity + engine</span>
+          </div>
+<pre>
+<span class="kw">resource</span> <span class="str">"tessell_db_service"</span> <span class="str">"oracle_dev_qa"</span> {
+  <span class="cm">#         ↑ resource type          ↑ local name (used in outputs/refs)</span>
+
+  <span class="cm"># ── Identity ──────────────────────────────────────────</span>
+  <span class="attr">name</span>         = <span class="str">"oracle-dev-qa"</span>         <span class="cm"># ① Visible in Tessell Console</span>
+  <span class="attr">description</span>  = <span class="str">"Oracle 19c Dev/QA"</span>     <span class="cm"># ② Human-readable context</span>
+  <span class="attr">subscription</span> = <span class="str">"default"</span>              <span class="cm"># ③ Tessell billing subscription</span>
+
+  <span class="cm"># ── Engine Config ─────────────────────────────────────</span>
+  <span class="attr">engine_type</span>            = <span class="str">"ORACLE"</span>              <span class="cm"># ④ Engine family</span>
+  <span class="attr">edition</span>                = <span class="str">"STANDARD"</span>            <span class="cm"># ⑤ Oracle edition</span>
+  <span class="attr">topology</span>               = <span class="str">"single_instance"</span>    <span class="cm"># ⑥ HA or no HA</span>
+  <span class="attr">software_image</span>         = <span class="str">"Oracle 19c SE2"</span>     <span class="cm"># ⑦ Tessell image name</span>
+  <span class="attr">software_image_version</span> = <span class="str">"19.17.0.0.221018"</span>  <span class="cm"># ⑧ Exact patch version</span>
+
+  <span class="cm"># ── Lifecycle Settings ────────────────────────────────</span>
+  <span class="attr">auto_minor_version_update</span>  = <span class="bool">true</span>   <span class="cm"># ⑨ Auto-apply minor patches</span>
+  <span class="attr">enable_deletion_protection</span> = <span class="bool">false</span>  <span class="cm"># ⑩ Allow destroy in Dev/QA</span>
+  <span class="attr">enable_stop_protection</span>     = <span class="bool">false</span>  <span class="cm"># ⑪ Allow stop in Dev/QA</span>
+  <span class="attr">block_until_complete</span>       = <span class="bool">true</span>   <span class="cm"># ⑫ Wait for READY before finishing</span>
+</pre>
+        </div>
+
+        <table class="param-table">
+          <tr><th>Param</th><th>Value</th><th>Explanation</th></tr>
+          <tr>
+            <td>name</td><td>"oracle-dev-qa"</td>
+            <td>Must be unique within your Tessell subscription. Used as identifier in the console and for DNS endpoint naming.</td>
+          </tr>
+          <tr>
+            <td>subscription</td><td>"default"</td>
+            <td>Tessell billing + quota context. Check your Tessell console for exact subscription names — case sensitive.</td>
+          </tr>
+          <tr>
+            <td>engine_type</td><td>"ORACLE"</td>
+            <td>Supported values: ORACLE, POSTGRESQL, MYSQL, SQLSERVER, MONGODB. Determines available editions, images, and config options.</td>
+          </tr>
+          <tr>
+            <td>edition</td><td>"STANDARD"</td>
+            <td>Oracle Standard Edition 2 (SE2) — up to 2 sockets, sufficient for Dev/QA. Use ENTERPRISE for partitioning, RAC, Advanced Security, etc.</td>
+          </tr>
+          <tr>
+            <td>topology</td><td>"single_instance"</td>
+            <td>Single VM, no standby replica. For Dev/QA this is fine. In production use "ha" — creates primary + standby with automatic failover.</td>
+          </tr>
+          <tr>
+            <td>software_image_version</td><td>"19.17.0.0.221018"</td>
+            <td>Full Oracle patch set version. 19.17 = 19c RU 17, .221018 = October 2022 patch. Find available versions in Tessell Console → Software Images.</td>
+          </tr>
+          <tr>
+            <td>block_until_complete</td><td>true</td>
+            <td><strong>Very important.</strong> Without this, Terraform returns "success" the moment Tessell accepts the request — but the DB is still provisioning. Set true to make Terraform wait for the DB to actually be READY (~15–20 min).</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 05: infrastructure block -->
+  <div class="section" id="infra">
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <div>
+        <h2>infrastructure {} Block</h2>
+        <p class="section-desc">Where the DB lives — cloud, region, compute shape, network, encryption.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(6,182,212,0.15)">☁️</div>
+          <div>
+            <div class="file-name">main.tf — infrastructure {} block</div>
+            <div class="file-purpose">Defines Azure region, compute shape, VPC, encryption, and timezone</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Required</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">main.tf — section 2/6: infrastructure</span>
+          </div>
+<pre>
+  <span class="fn">infrastructure</span> {
+    <span class="attr">cloud</span>             = <span class="str">"azure"</span>           <span class="cm"># ① Cloud provider</span>
+    <span class="attr">region</span>            = <span class="str">"eastUS"</span>          <span class="cm"># ② Azure region</span>
+    <span class="attr">availability_zone</span> = <span class="val">null</span>             <span class="cm"># ③ null = Tessell picks AZ</span>
+    <span class="attr">vpc</span>               = <span class="str">"your-vpc-name"</span>  <span class="cm"># ④ Tessell VNet (exact name from console)</span>
+
+    <span class="attr">compute_type</span>      = <span class="str">"tesl_4_a"</span>       <span class="cm"># ⑤ Tessell compute shape</span>
+    <span class="attr">enable_encryption</span> = <span class="bool">true</span>            <span class="cm"># ⑥ Encrypt data at rest</span>
+    <span class="attr">encryption_key</span>    = <span class="str">"default-encryption-key"</span> <span class="cm"># ⑦ Use Tessell-managed key</span>
+    <span class="attr">additional_storage</span> = <span class="val">0</span>             <span class="cm"># ⑧ Extra GB on top of default</span>
+
+    <span class="attr">timezone</span>                = <span class="str">"Asia/Calcutta"</span> <span class="cm"># ⑨ Oracle system timezone</span>
+    <span class="attr">enable_compute_sharing</span>  = <span class="bool">true</span>           <span class="cm"># ⑩ Share VM across services (cost saving)</span>
+  }
+</pre>
+        </div>
+
+        <div class="infra-grid">
+          <div class="infra-card">
+            <div class="infra-card-icon">☁️</div>
+            <div class="infra-card-title">Cloud + Region</div>
+            <div class="infra-card-val">azure / eastUS</div>
+            <div class="infra-card-why">Tessell provisions the Oracle VM inside this Azure region. Other options: westEurope, centralIndia, southeastAsia.</div>
+          </div>
+          <div class="infra-card">
+            <div class="infra-card-icon">🖥️</div>
+            <div class="infra-card-title">Compute Shape</div>
+            <div class="infra-card-val">tesl_4_a</div>
+            <div class="infra-card-why">4 vCPU Tessell shape. Maps to an Azure VM size internally. Check Tessell Console → Compute for all available shapes and their vCPU/RAM specs.</div>
+          </div>
+          <div class="infra-card">
+            <div class="infra-card-icon">🔒</div>
+            <div class="infra-card-title">Encryption</div>
+            <div class="infra-card-val">true / default key</div>
+            <div class="infra-card-why">Encrypts data at rest using Tessell-managed keys. For production, use your own Azure Key Vault key instead of "default-encryption-key".</div>
+          </div>
+          <div class="infra-card">
+            <div class="infra-card-icon">🌐</div>
+            <div class="infra-card-title">VPC / VNet</div>
+            <div class="infra-card-val">your-vpc-name</div>
+            <div class="infra-card-why">The Tessell-managed VNet where the DB is placed. Get the exact name from Tessell Console → Infrastructure → Networks. Case-sensitive.</div>
+          </div>
+          <div class="infra-card">
+            <div class="infra-card-icon">🕐</div>
+            <div class="infra-card-title">Timezone</div>
+            <div class="infra-card-val">Asia/Calcutta</div>
+            <div class="infra-card-why">Sets Oracle's DBTIMEZONE and system clock. Critical for scheduled jobs, backup windows, and timestamp interpretation. Use IANA timezone names.</div>
+          </div>
+          <div class="infra-card">
+            <div class="infra-card-icon">💰</div>
+            <div class="infra-card-title">Compute Sharing</div>
+            <div class="infra-card-val">true (Dev/QA only)</div>
+            <div class="infra-card-why">Multiple Tessell DB services share the same underlying VM. Reduces cost significantly in Dev/QA. Always set false in production for isolation.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 06: service_connectivity -->
+  <div class="section" id="connectivity">
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <div>
+        <h2>service_connectivity {} Block</h2>
+        <p class="section-desc">Controls how and who can reach the database over the network.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(139,92,246,0.15)">🌐</div>
+          <div>
+            <div class="file-name">main.tf — service_connectivity {} block</div>
+            <div class="file-purpose">Port, SSL, public access, and IP whitelist configuration</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Required</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">main.tf — section 3/6: service_connectivity</span>
+          </div>
+<pre>
+  <span class="fn">service_connectivity</span> {
+    <span class="attr">service_port</span>         = <span class="str">"1521"</span>          <span class="cm"># ① Oracle default listener port</span>
+    <span class="attr">enable_public_access</span> = <span class="bool">true</span>           <span class="cm"># ② Expose via public endpoint</span>
+    <span class="attr">enable_s_s_l</span>         = <span class="bool">true</span>           <span class="cm"># ③ TLS in transit</span>
+
+    <span class="attr">allowed_ip_addresses</span> = [             <span class="cm"># ④ IP whitelist (firewall rules)</span>
+      <span class="ref">var.allowed_ip</span>                      <span class="cm">#    Only your machine's IP</span>
+    ]
+  }
+</pre>
+        </div>
+
+        <div class="explain-grid">
+          <div class="explain-card info">
+            <h4>① service_port = "1521"</h4>
+            <p>Oracle Net Listener default port. If you need non-standard port (e.g., <code>2484</code> for TCPS/SSL), change this. Your JDBC string must match: <code>jdbc:oracle:thin:@host:1521:SID</code></p>
+          </div>
+          <div class="explain-card warn">
+            <h4>② enable_public_access = true</h4>
+            <p>OK for Dev/QA where you need direct access from your laptop. <strong>Never use true in production</strong> — use private endpoint + VPN/bastion instead. Public = internet-reachable endpoint.</p>
+          </div>
+          <div class="explain-card good">
+            <h4>③ enable_s_s_l = true</h4>
+            <p>Encrypts all data in transit using TLS. Always enable this — even in Dev/QA. Prevents credential sniffing on the wire. Your JDBC driver must trust Tessell's cert or you need to add it to your truststore.</p>
+          </div>
+          <div class="explain-card tip">
+            <h4>④ allowed_ip_addresses</h4>
+            <p>Acts as a network firewall. Tessell creates Azure NSG (Network Security Group) rules behind the scenes. You can add multiple IPs or CIDR blocks: <code>["1.2.3.4", "10.0.0.0/24"]</code></p>
+          </div>
+        </div>
+
+        <div class="callout callout-good">
+          <div class="callout-icon">✅</div>
+          <div class="callout-body">
+            <div class="callout-title">Pro tip: Dynamic IP lookup in Terraform</div>
+            <p class="callout-text">Instead of hardcoding your IP in <code>tfvars</code>, you can use a data source: add an HTTP data source to fetch <code>ifconfig.me</code> and use that value. This way <code>terraform apply</code> always whitelists your current IP automatically — useful if you're on a dynamic IP.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 07: databases block -->
+  <div class="section" id="databases">
+    <div class="section-header">
+      <div class="section-num">07</div>
+      <div>
+        <h2>databases {} Block</h2>
+        <p class="section-desc">Defines the logical Oracle database inside the service — the SID/PDB, character set, and engine config.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(16,185,129,0.15)">🗄️</div>
+          <div>
+            <div class="file-name">main.tf — databases {} block</div>
+            <div class="file-purpose">The Oracle database definition — name (SID), description, engine-specific params</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Required</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">main.tf — section 4/6: databases</span>
+          </div>
+<pre>
+  <span class="fn">databases</span> {
+    <span class="attr">database_name</span>        = <span class="str">"DEVDB"</span>                   <span class="cm"># ① The Oracle SID/DB name</span>
+    <span class="attr">database_description</span> = <span class="str">"Dev/QA Oracle Database"</span>  <span class="cm"># ② Human label</span>
+
+    <span class="fn">database_configuration</span> {
+      <span class="fn">oracle_config</span> {
+        <span class="cm"># Optional Oracle-specific parameters:</span>
+        <span class="cm"># character_set        = "AL32UTF8"     ← Unicode (recommended)</span>
+        <span class="cm"># national_character_set = "AL16UTF16"  ← NCHAR/NVARCHAR char set</span>
+        <span class="cm"># parameter_profile_id = "xyz"          ← Custom init.ora params</span>
+      }
+    }
+  }
+</pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-icon">💡</div>
+          <div class="callout-body">
+            <div class="callout-title">DB Service vs Database — What's the difference?</div>
+            <p class="callout-text">
+              <strong>DB Service</strong> = the infrastructure layer (VM, network, compute, storage, backups). Think of it as the Oracle installation.<br><br>
+              <strong>database {}</strong> = the logical Oracle database (the SID/CDB) that lives inside the service. One service can host multiple databases. For most Dev/QA cases, one database per service is fine.<br><br>
+              In Oracle terms: <strong>service</strong> ≈ the Oracle Home + listener. <strong>database</strong> ≈ the individual CDB/SID.
+            </p>
+          </div>
+        </div>
+
+        <table class="param-table">
+          <tr><th>Param</th><th>Example</th><th>Notes</th></tr>
+          <tr>
+            <td>database_name</td><td>"DEVDB"</td>
+            <td>This becomes the Oracle SID. Max 8 chars, uppercase, alphanumeric only. Used in JDBC: <code>@host:1521:DEVDB</code></td>
+          </tr>
+          <tr>
+            <td>character_set</td><td>"AL32UTF8"</td>
+            <td>Always use AL32UTF8 for new databases — supports all Unicode characters. Cannot be changed after creation without full rebuild.</td>
+          </tr>
+          <tr>
+            <td>parameter_profile_id</td><td>from console</td>
+            <td>Points to a Tessell Parameter Profile (like RDS Parameter Groups) — a named set of Oracle init.ora parameters. Leave empty to use default profile.</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 08: creds + snapshot -->
+  <div class="section" id="creds">
+    <div class="section-header">
+      <div class="section-num">08</div>
+      <div>
+        <h2>creds {} + snapshot_configuration {} + tags {}</h2>
+        <p class="section-desc">Authentication, backup policy, and resource tagging.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(245,158,11,0.15)">🔑</div>
+          <div>
+            <div class="file-name">main.tf — creds, snapshot, tags blocks</div>
+            <div class="file-purpose">Master credentials, backup SLA, and resource tags</div>
+          </div>
+        </div>
+        <span class="file-badge badge-required">Required</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">main.tf — section 5/6: creds + snapshot + tags</span>
+          </div>
+<pre>
+  <span class="cm"># ── Master Credentials ────────────────────────────────</span>
+  <span class="fn">creds</span> {
+    <span class="attr">master_user</span>     = <span class="str">"admin"</span>                  <span class="cm"># ① Oracle DBA user (SYS-level)</span>
+    <span class="attr">master_password</span> = <span class="ref">var.db_master_password</span>   <span class="cm"># ② From tfvars, sensitive</span>
+  }
+
+  <span class="cm"># ── Backup / Snapshot Policy ──────────────────────────</span>
+  <span class="fn">snapshot_configuration</span> {
+    <span class="attr">auto_snapshot</span>       = <span class="bool">true</span>          <span class="cm"># ③ Enable automated backups</span>
+    <span class="attr">sla</span>                 = <span class="str">"PITR-1day"</span>  <span class="cm"># ④ Point-in-time recovery window</span>
+    <span class="attr">snapshot_start_time</span> = <span class="str">"02:00"</span>      <span class="cm"># ⑤ Backup window start (24hr UTC)</span>
+  }
+
+  <span class="cm"># ── Resource Tags ─────────────────────────────────────</span>
+  <span class="fn">tags</span> { <span class="attr">name</span> = <span class="str">"environment"</span>; <span class="attr">value</span> = <span class="str">"dev-qa"</span> }    <span class="cm"># ⑥</span>
+  <span class="fn">tags</span> { <span class="attr">name</span> = <span class="str">"managed-by"</span>;  <span class="attr">value</span> = <span class="str">"terraform"</span> }
+  <span class="fn">tags</span> { <span class="attr">name</span> = <span class="str">"team"</span>;        <span class="attr">value</span> = <span class="str">"engineering"</span> }
+}  <span class="cm"># ← closes tessell_db_service resource</span>
+</pre>
+        </div>
+
+        <div class="explain-grid">
+          <div class="explain-card info">
+            <h4>① master_user</h4>
+            <p>This becomes the Oracle DBA account with SYS-equivalent privileges. You connect with this to create schemas, grant permissions, etc. Common names: <code>admin</code>, <code>dbadmin</code>, <code>dba</code>.</p>
+          </div>
+          <div class="explain-card warn">
+            <h4>④ SLA = "PITR-1day"</h4>
+            <p>Point-In-Time Recovery window of 1 day — means you can restore to any second within the last 24 hours. For Dev/QA this is enough. Production typically needs <code>PITR-7day</code> or longer. SLA names come from Tessell Console → Policies.</p>
+          </div>
+          <div class="explain-card good">
+            <h4>⑤ snapshot_start_time</h4>
+            <p>Backup begins at 2:00 AM (24hr format). Choose off-peak hours in your timezone. Tessell takes an Oracle RMAN snapshot — no downtime, but slight I/O impact during backup window.</p>
+          </div>
+          <div class="explain-card tip">
+            <h4>⑥ tags</h4>
+            <p>Tags are key-value pairs stored in Tessell metadata — not Azure tags directly, but visible in the Tessell console for filtering, cost attribution, and access control. Always tag <code>managed-by = terraform</code> so your team knows not to manually modify this resource.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 09: outputs.tf -->
+  <div class="section" id="outputs">
+    <div class="section-header">
+      <div class="section-num">09</div>
+      <div>
+        <h2>outputs.tf</h2>
+        <p class="section-desc">What Terraform prints after a successful apply — IDs, status, connection info.</p>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-header">
+        <div class="file-title-group">
+          <div class="file-icon" style="background:rgba(139,92,246,0.15)">📤</div>
+          <div>
+            <div class="file-name">outputs.tf</div>
+            <div class="file-purpose">Exports resource attributes after apply — usable by other Terraform modules or CI/CD</div>
+          </div>
+        </div>
+        <span class="file-badge badge-output">Output</span>
+      </div>
+      <div class="file-body">
+        <div class="code-wrap">
+          <div class="code-toolbar">
+            <div class="code-dots"><span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span></div>
+            <span class="code-label">outputs.tf</span>
+          </div>
+<pre>
+<span class="kw">output</span> <span class="str">"db_service_id"</span> {
+  <span class="attr">description</span> = <span class="str">"Unique UUID of the provisioned DB service"</span>
+  <span class="attr">value</span>       = <span class="ref">tessell_db_service.oracle_dev_qa.id</span>
+}
+
+<span class="kw">output</span> <span class="str">"db_service_status"</span> {
+  <span class="attr">description</span> = <span class="str">"Current status — should be READY after apply"</span>
+  <span class="attr">value</span>       = <span class="ref">tessell_db_service.oracle_dev_qa.status</span>
+}
+
+<span class="kw">output</span> <span class="str">"db_service_name"</span> {
+  <span class="attr">description</span> = <span class="str">"Name as registered in Tessell"</span>
+  <span class="attr">value</span>       = <span class="ref">tessell_db_service.oracle_dev_qa.name</span>
+}
+
+<span class="kw">output</span> <span class="str">"oracle_port"</span> {
+  <span class="attr">description</span> = <span class="str">"Port to connect to Oracle"</span>
+  <span class="attr">value</span>       = <span class="str">"1521"</span>
+}
+</pre>
+        </div>
+
+        <div class="explain-grid">
+          <div class="explain-card info">
+            <h4>How outputs work</h4>
+            <p>After <code>terraform apply</code>, all output values are printed to terminal AND saved in <code>.tfstate</code>. Run <code>terraform output db_service_id</code> anytime to retrieve them. Reference them in scripts: <code>$(terraform output -raw db_service_id)</code></p>
+          </div>
+          <div class="explain-card tip">
+            <h4>Cross-module usage</h4>
+            <p>If this Tessell module is called from a parent module, outputs are accessible as <code>module.tessell_oracle.db_service_id</code>. This is how you pass the DB ID to an app deployment module in the same Terraform project.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 10: Lifecycle -->
+  <div class="section" id="lifecycle">
+    <div class="section-header">
+      <div class="section-num">10</div>
+      <div>
+        <h2>Full Terraform Lifecycle</h2>
+        <p class="section-desc">Every command, what it does internally, and when to use it.</p>
+      </div>
+    </div>
+
+    <div class="lifecycle">
+      <div class="lifecycle-step">
+        <div class="lifecycle-icon">📦</div>
+        <div class="lifecycle-label">Download Plugin</div>
+        <div class="lifecycle-cmd">terraform init</div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="lifecycle-icon">✅</div>
+        <div class="lifecycle-label">Check Syntax</div>
+        <div class="lifecycle-cmd">terraform validate</div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="lifecycle-icon">🔍</div>
+        <div class="lifecycle-label">Dry Run</div>
+        <div class="lifecycle-cmd">terraform plan</div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="lifecycle-icon">🚀</div>
+        <div class="lifecycle-label">Provision</div>
+        <div class="lifecycle-cmd">terraform apply</div>
+      </div>
+      <div class="lifecycle-step">
+        <div class="lifecycle-icon">🗑️</div>
+        <div class="lifecycle-label">Teardown</div>
+        <div class="lifecycle-cmd">terraform destroy</div>
+      </div>
+    </div>
+
+    <table class="param-table" style="margin-top:1.5rem">
+      <tr><th>Command</th><th>What It Does Internally</th><th>When to Run</th></tr>
+      <tr>
+        <td>terraform init</td>
+        <td>Downloads tessell-cloud/tessell provider from registry, creates <code>.terraform/</code> lock file. Must run after any provider change.</td>
+        <td>Once per project setup, and whenever you add/change providers</td>
+      </tr>
+      <tr>
+        <td>terraform validate</td>
+        <td>Checks HCL syntax and schema validity without calling any APIs. Catches typos, missing required fields, wrong types.</td>
+        <td>Before every plan — fast sanity check</td>
+      </tr>
+      <tr>
+        <td>terraform plan</td>
+        <td>Calls Tessell API to read current state, compares to desired state in <code>.tf</code> files, shows a diff of what will change. No side effects.</td>
+        <td>Always before apply — especially in CI/CD for review gates</td>
+      </tr>
+      <tr>
+        <td>terraform apply</td>
+        <td>Executes the plan — calls Tessell API to create/modify/delete resources. Writes results to <code>terraform.tfstate</code>. With <code>block_until_complete=true</code>, polls until DB is READY.</td>
+        <td>When you're ready to actually provision</td>
+      </tr>
+      <tr>
+        <td>terraform output</td>
+        <td>Reads and prints output values from <code>.tfstate</code>. Use <code>-raw</code> flag for scripting.</td>
+        <td>After apply to get connection info</td>
+      </tr>
+      <tr>
+        <td>terraform destroy</td>
+        <td>Calls Tessell API to delete all managed resources. With <code>enable_deletion_protection=false</code>, this works cleanly.</td>
+        <td>Teardown Dev/QA to save costs</td>
+      </tr>
+    </table>
+
+    <div class="callout callout-warn" style="margin-top:1.5rem">
+      <div class="callout-icon">⚠️</div>
+      <div class="callout-body">
+        <div class="callout-title">Never manually delete resources from the Tessell Console if Terraform manages them</div>
+        <p class="callout-text">If you delete the DB manually via Tessell Console but <code>.tfstate</code> still thinks it exists, Terraform will be confused. Always use <code>terraform destroy</code> for Terraform-managed resources. If you accidentally do this, use <code>terraform state rm</code> to remove the stale entry from state.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="container">
+    <p style="color:var(--muted); font-size:0.8rem; margin:0">
+      Tessell Oracle on Azure — Terraform Deep Dive · Oracle 19c SE2 · single_instance · Dev/QA
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
