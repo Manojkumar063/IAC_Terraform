@@ -20,26 +20,26 @@ resource "tessell_db_service" "oracle_dev_qa" {
   enable_stop_protection     = var.environment == "prod" ? true : false  # Protect prod from accidental stop
   block_until_complete       = true      # Wait for DB READY before Terraform finishes
 
-  # ─── Infrastructure (AWS) ─────────────────────────────────────
+  # ─── Infrastructure (AWS) ───────────────────────────────────── 
   infrastructure {
     cloud             = "aws"
-    region            = var.aws_region
-    availability_zone = null              # Single instance: set null
+    region            = var.aws_region 
+    availability_zone = null              # Single instance: set null 
     vpc               = var.vpc_name
 
-    compute_type      = "tesl_4_a"        # 4 vCPU shape — good for Dev/QA
+    compute_type      = "tesl_4_a"        # 4 vCPU shape — good for Dev/QA 
     enable_encryption = true
-    encryption_key    = "default-encryption-key"
-    additional_storage = 0               # No extra storage for Dev/QA
-
+    encryption_key    = "default-encryption-key" 
+    additional_storage = 0               # No extra storage for Dev/QA 
+ 
     timezone                = "Asia/Calcutta"   # Set your timezone
-    enable_compute_sharing  = var.environment != "prod"  # Only share compute in non-prod
+    enable_compute_sharing  = var.environment != "prod"  # Only share compute in non-prod 
   }
 
-  # ─── Network Connectivity ─────────────────────────────────────
+  # ─── Network Connectivity ───────────────────────────────────── 
   service_connectivity {
     service_port        = "1521"           # Oracle default port
-    enable_public_access = var.environment != "prod"  # Only allow public access in non-prod
+    enable_public_access = var.environment != "prod"  # Only allow public access in non-prod 
     enable_s_s_l         = true
 
     allowed_ip_addresses = [

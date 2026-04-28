@@ -1,0 +1,21 @@
+Amazon Web Services (AWS) is a cloud computing platform provided by Amazon.
+It offers over 200 fully featured services from data centers globally.
+
+AWS Key Services:
+- EC2 (Elastic Compute Cloud): Virtual servers in the cloud.
+- S3 (Simple Storage Service): Scalable object storage.
+- RDS (Relational Database Service): Managed relational databases.
+- Lambda: Serverless compute — run code without managing servers.
+- VPC (Virtual Private Cloud): Isolated cloud network for your resources.
+
+AWS Regions and Availability Zones:
+AWS operates in multiple geographic regions, each containing multiple Availability Zones (AZs).
+AZs are isolated data centers within a region, providing high availability and fault tolerance.
+
+AWS Pricing:
+AWS follows a pay-as-you-go model. You only pay for what you use with no upfront costs.
+Free Tier is available for new customers for 12 months on select services.
+
+AWS Security:
+AWS uses a shared responsibility model. AWS secures the infrastructure; customers secure their data and applications.
+IAM (Identity and Access Management) controls access to AWS services and resources.

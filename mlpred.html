@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HouseIQ — ML Price Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:      #0f0e0c;
+    --paper:    #f5f2eb;
+    --accent:   #c8402e;
+    --gold:     #b8963e;
+    --muted:    #7a7468;
+    --surface:  #ede9e0;
+    --border:   #d5d0c5;
+    --green:    #2d6a4f;
+    --mono:     'DM Mono', monospace;
+    --serif:    'DM Serif Display', serif;
+    --sans:     'Syne', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: var(--serif);
+    font-size: 28px;
+    letter-spacing: -0.5px;
+    color: var(--ink);
+    display: flex; align-items: baseline; gap: 6px;
+  }
+
+  .logo span {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--accent);
+    background: #c8402e14;
+    border: 1px solid #c8402e33;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+    align-self: center;
+  }
+
+  .header-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative; z-index: 10;
+    padding: 64px 48px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: start;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .hero-left h1 {
+    font-family: var(--serif);
+    font-size: clamp(40px, 5vw, 68px);
+    line-height: 1.05;
+    color: var(--ink);
+    letter-spacing: -1.5px;
+    margin-bottom: 20px;
+  }
+
+  .hero-left h1 em {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .hero-left p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 420px;
+    font-weight: 400;
+  }
+
+  .pipeline-badges {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 28px;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .badge-step { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  .badge-active { background: var(--ink); color: var(--paper); }
+
+  /* ── FORM CARD ── */
+  .form-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 36px;
+    box-shadow: 0 2px 0 var(--border), 0 8px 32px rgba(15,14,12,0.07);
+    position: relative;
+  }
+
+  .form-card::before {
+    content: 'PREDICT';
+    position: absolute; top: -1px; right: 24px;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    background: var(--accent);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 0 0 4px 4px;
+  }
+
+  .form-section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .field label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .field input, .field select {
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ink);
+    background: var(--paper);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .field input:focus, .field select:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(15,14,12,0.07);
+  }
+
+  /* Range sliders */
+  .slider-wrap { display: flex; align-items: center; gap: 12px; }
+
+  .slider-wrap input[type=range] {
+    flex: 1; padding: 0;
+    -webkit-appearance: none;
+    height: 4px;
+    background: linear-gradient(to right, var(--ink) var(--pct,50%), var(--border) var(--pct,50%));
+    border-radius: 2px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .slider-wrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 2px solid var(--paper);
+    box-shadow: 0 0 0 1px var(--ink);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .slider-wrap input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .slider-val { font-family: var(--mono); font-size: 13px; font-weight: 500; min-width: 32px; text-align: right; color: var(--ink); }
+
+  /* Location toggle */
+  .location-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .location-toggle input { display: none; }
+
+  .location-toggle label {
+    padding: 10px 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--paper);
+    border-right: 1px solid var(--border);
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+
+  .location-toggle label:last-of-type { border-right: none; }
+
+  .location-toggle input:checked + label {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  /* Predict button */
+  .btn-predict {
+    width: 100%;
+    padding: 15px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 3px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.1s;
+  }
+
+  .btn-predict:hover { transform: translateY(-1px); }
+  .btn-predict:active { transform: translateY(0); }
+
+  .btn-predict::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%);
+    transform: translateX(-100%);
+    transition: transform 0.4s;
+  }
+
+  .btn-predict:hover::after { transform: translateX(100%); }
+
+  /* ── RESULT PANEL ── */
+  .result-panel {
+    position: relative; z-index: 10;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 48px 80px;
+    display: none;
+  }
+
+  .result-panel.visible { display: block; animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1); }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 0 var(--border);
+  }
+
+  .result-cell {
+    background: #fff;
+    padding: 32px 28px;
+  }
+
+  .result-cell.main {
+    background: var(--ink);
+    grid-column: span 1;
+  }
+
+  .cell-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .result-cell.main .cell-label { color: rgba(245,242,235,0.5); }
+
+  .cell-value {
+    font-family: var(--serif);
+    font-size: 42px;
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: -1px;
+  }
+
+  .result-cell.main .cell-value { color: var(--paper); }
+
+  .cell-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .result-cell.main .cell-sub { color: rgba(245,242,235,0.55); }
+
+  /* Metric bar */
+  .metric-bar-wrap { margin-top: 16px; }
+  .metric-bar-track {
+    height: 4px;
+    background: var(--surface);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .metric-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
+    width: 0;
+  }
+  .metric-bar-fill.green { background: var(--green); }
+
+  /* ── MODEL BREAKDOWN ── */
+  .breakdown {
+    margin-top: 1px;
+    background: var(--surface);
+    padding: 28px;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+  }
+
+  .breakdown-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .feature-rows { display: flex; flex-direction: column; gap: 10px; }
+
+  .feature-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 80px;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .feature-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .feature-track {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .feature-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.9s cubic-bezier(0.22,1,0.36,1);
+    width: 0;
+  }
+
+  .feature-fill.pos { background: var(--accent); }
+  .feature-fill.neg { background: var(--gold); }
+
+  .feature-contrib {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    text-align: right;
+    color: var(--ink);
+  }
+
+  /* ── HISTORY ── */
+  .history-section {
+    position: relative; z-index: 10;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 48px 80px;
+  }
+
+  .history-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .history-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .history-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .history-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 14px 20px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .history-item .hist-price {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+    font-family: var(--serif);
+  }
+
+  /* ── FOOTER STRIP ── */
+  .footer-strip {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: var(--ink);
+    padding: 10px 48px;
+    display: flex; align-items: center; gap: 24px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(245,242,235,0.4);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .footer-strip span { color: rgba(245,242,235,0.7); }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    header, .hero, .result-panel, .history-section { padding-left: 24px; padding-right: 24px; }
+    .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 40px; }
+    .result-grid { grid-template-columns: 1fr 1fr; }
+    .result-cell.main { grid-column: span 2; }
+  }
+
+  @media (max-width: 600px) {
+    .result-grid { grid-template-columns: 1fr; }
+    .result-cell.main { grid-column: span 1; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">HouseIQ <span>ML v1.0</span></div>
+  <div class="header-tag">Linear Regression · R² = 0.9517 · MAE $15,918</div>
+</header>
+
+<!-- Hero + Form -->
+<section class="hero">
+  <div class="hero-left">
+    <h1>Predict<br/><em>house</em><br/>prices.</h1>
+    <p>A full ML pipeline — from raw data to live inference. Enter property details and get an instant price prediction powered by a trained regression model.</p>
+    <div class="pipeline-badges">
+      <span class="badge badge-step">Data collection</span>
+      <span class="badge badge-step">EDA</span>
+      <span class="badge badge-step">Preprocessing</span>
+      <span class="badge badge-step">Feature eng.</span>
+      <span class="badge badge-step">Train/test split</span>
+      <span class="badge badge-step">Training</span>
+      <span class="badge badge-step">Evaluation</span>
+      <span class="badge badge-step">Tuning</span>
+      <span class="badge badge-active">→ Prediction</span>
+      <span class="badge badge-step">Deploy</span>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="form-section-label">Property details</div>
+
+    <div class="form-grid">
+      <!-- Bedrooms -->
+      <div class="field">
+        <label>Bedrooms</label>
+        <div class="slider-wrap">
+          <input type="range" id="bedrooms" min="1" max="5" value="3" step="1"
+                 oninput="updateSlider(this); updatePreview()">
+          <span class="slider-val" id="bedrooms-val">3</span>
+        </div>
+      </div>
+
+      <!-- Bathrooms -->
+      <div class="field">
+        <label>Bathrooms</label>
+        <div class="slider-wrap">
+          <input type="range" id="bathrooms" min="1" max="5" value="2" step="1"
+                 oninput="updateSlider(this); updatePreview()">
+          <span class="slider-val" id="bathrooms-val">2</span>
+        </div>
+      </div>
+
+      <!-- Sqft -->
+      <div class="field" style="grid-column: span 2;">
+        <label>Square Footage</label>
+        <div class="slider-wrap">
+          <input type="range" id="sqft" min="500" max="4000" value="1800" step="50"
+                 oninput="updateSlider(this); updatePreview()">
+          <span class="slider-val" id="sqft-val">1800</span>
+        </div>
+      </div>
+
+      <!-- Age -->
+      <div class="field">
+        <label>Age (years)</label>
+        <div class="slider-wrap">
+          <input type="range" id="age" min="1" max="60" value="10" step="1"
+                 oninput="updateSlider(this); updatePreview()">
+          <span class="slider-val" id="age-val">10</span>
+        </div>
+      </div>
+
+      <!-- Garage -->
+      <div class="field">
+        <label>Garage spaces</label>
+        <div class="slider-wrap">
+          <input type="range" id="garage" min="0" max="2" value="1" step="1"
+                 oninput="updateSlider(this); updatePreview()">
+          <span class="slider-val" id="garage-val">1</span>
+        </div>
+      </div>
+
+      <!-- Location -->
+      <div class="field" style="grid-column: span 2;">
+        <label>Location</label>
+        <div class="location-toggle">
+          <input type="radio" name="location" id="loc-urban" value="urban" checked onchange="updatePreview()">
+          <label for="loc-urban">Urban</label>
+          <input type="radio" name="location" id="loc-suburban" value="suburban" onchange="updatePreview()">
+          <label for="loc-suburban">Suburban</label>
+          <input type="radio" name="location" id="loc-rural" value="rural" onchange="updatePreview()">
+          <label for="loc-rural">Rural</label>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-predict" onclick="runPrediction()">
+      ↗ Run Prediction
+    </button>
+  </div>
+</section>
+
+<!-- Result Panel -->
+<section class="result-panel" id="result-panel">
+  <div class="result-grid">
+    <!-- Main price -->
+    <div class="result-cell main">
+      <div class="cell-label">Predicted price</div>
+      <div class="cell-value" id="result-price">—</div>
+      <div class="cell-sub" id="result-range">± $20,000 confidence</div>
+    </div>
+
+    <!-- R² -->
+    <div class="result-cell">
+      <div class="cell-label">Model confidence (R²)</div>
+      <div class="cell-value" style="font-size:32px;">0.9517</div>
+      <div class="cell-sub">95.2% variance explained</div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-track">
+          <div class="metric-bar-fill green" id="r2-bar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAE -->
+    <div class="result-cell">
+      <div class="cell-label">Avg. error (MAE)</div>
+      <div class="cell-value" style="font-size:32px;">$15.9k</div>
+      <div class="cell-sub">Mean absolute error on test set</div>
+      <div class="metric-bar-wrap">
+        <div class="metric-bar-track">
+          <div class="metric-bar-fill" id="mae-bar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feature contribution breakdown -->
+  <div class="breakdown">
+    <div class="breakdown-title">Feature contributions (model coefficients × input values)</div>
+    <div class="feature-rows" id="feature-rows"></div>
+  </div>
+</section>
+
+<!-- Prediction history -->
+<section class="history-section" id="history-section" style="display:none;">
+  <div class="history-title">Prediction history</div>
+  <div class="history-list" id="history-list"></div>
+</section>
+
+<!-- Footer strip -->
+<div class="footer-strip" style="padding-bottom: 10px;">
+  <div class="status-dot"></div>
+  Model loaded · <span>Linear Regression</span> · 10-step pipeline ·
+  1,000 training samples · 5-fold CV: <span>0.9548 ± 0.0055</span>
+</div>
+
+<script>
+// ─── ML Model (replicated from Python) ──────────────────────
+const MODEL = {
+  // Coefficients from sklearn LinearRegression (approximate)
+  intercept: 330650,
+  coefs: {
+    sqft:             74162,
+    bedrooms:         13837,
+    bathrooms:         9561,
+    age_years:        -8200,
+    garage_spaces:    11068,
+    rooms_per_sqft:   -6200,
+    total_rooms:      11932,
+    desirability:      6936,
+    location_rural:  -14683,
+    location_suburban: -2100,
+    location_urban:   14683,
+  }
+};
+
+// Training data stats for StandardScaler
+const SCALER = {
+  means: {
+    bedrooms: 3.0, bathrooms: 2.6, sqft: 2255, age_years: 30.6,
+    garage_spaces: 1.0, rooms_per_sqft: 0.00245, total_rooms: 5.6,
+    desirability: 1572, location_rural: 0.202, location_suburban: 0.385, location_urban: 0.413
+  },
+  stds: {
+    bedrooms: 1.4, bathrooms: 1.4, sqft: 1021, age_years: 17.0,
+    garage_spaces: 0.82, rooms_per_sqft: 0.00087, total_rooms: 1.95,
+    desirability: 750, location_rural: 0.402, location_suburban: 0.487, location_urban: 0.493
+  }
+};
+
+function getInputs() {
+  return {
+    bedrooms:       +document.getElementById('bedrooms').value,
+    bathrooms:      +document.getElementById('bathrooms').value,
+    sqft:           +document.getElementById('sqft').value,
+    age_years:      +document.getElementById('age').value,
+    garage_spaces:  +document.getElementById('garage').value,
+    location:       document.querySelector('input[name="location"]:checked').value,
+  };
+}
+
+function predict(inp) {
+  const { bedrooms, bathrooms, sqft, age_years, garage_spaces, location } = inp;
+
+  const raw = {
+    bedrooms, bathrooms, sqft, age_years, garage_spaces,
+    rooms_per_sqft:  (bedrooms + bathrooms) / sqft,
+    total_rooms:      bedrooms + bathrooms,
+    desirability:     sqft * (1 - age_years / 100),
+    location_rural:    location === 'rural'    ? 1 : 0,
+    location_suburban: location === 'suburban' ? 1 : 0,
+    location_urban:    location === 'urban'    ? 1 : 0,
+  };
+
+  // Scale
+  const scaled = {};
+  for (const k in raw) {
+    scaled[k] = (raw[k] - SCALER.means[k]) / SCALER.stds[k];
+  }
+
+  // Linear combination
+  let price = MODEL.intercept;
+  const contribs = {};
+  for (const k in MODEL.coefs) {
+    const c = MODEL.coefs[k] * scaled[k];
+    price += c;
+    contribs[k] = c;
+  }
+
+  return { price: Math.max(price, 50000), contribs, raw };
+}
+
+// ─── UI Updates ───────────────────────────────────────────────
+function updateSlider(el) {
+  const id = el.id;
+  document.getElementById(id + '-val').textContent = el.value;
+  const min = +el.min, max = +el.max, val = +el.value;
+  const pct = ((val - min) / (max - min)) * 100;
+  el.style.setProperty('--pct', pct + '%');
+}
+
+// Init sliders
+document.querySelectorAll('input[type=range]').forEach(updateSlider);
+
+let history = [];
+let pendingTimeout = null;
+
+function updatePreview() {
+  clearTimeout(pendingTimeout);
+  pendingTimeout = setTimeout(runPrediction, 120);
+}
+
+function runPrediction() {
+  const inp = getInputs();
+  const { price, contribs, raw } = predict(inp);
+
+  // Show result panel
+  const panel = document.getElementById('result-panel');
+  panel.classList.add('visible');
+  panel.style.display = 'block';
+
+  // Price
+  document.getElementById('result-price').textContent = '$' + Math.round(price).toLocaleString();
+  document.getElementById('result-range').textContent =
+    `Range: $${Math.round(price - 19683).toLocaleString()} – $${Math.round(price + 19683).toLocaleString()}`;
+
+  // Bars
+  setTimeout(() => {
+    document.getElementById('r2-bar').style.width = '95.2%';
+    document.getElementById('mae-bar').style.width = `${(15918 / price) * 60}%`;
+  }, 100);
+
+  // Feature contributions
+  const featureLabels = {
+    sqft: 'Sq. footage', bedrooms: 'Bedrooms', bathrooms: 'Bathrooms',
+    age_years: 'Age', garage_spaces: 'Garage', total_rooms: 'Total rooms',
+    desirability: 'Desirability score', location_urban: 'Urban premium',
+    location_rural: 'Rural discount', location_suburban: 'Suburban factor',
+    rooms_per_sqft: 'Density ratio',
+  };
+
+  const sorted = Object.entries(contribs)
+    .filter(([k]) => featureLabels[k])
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+    .slice(0, 7);
+
+  const maxAbs = Math.max(...sorted.map(([,v]) => Math.abs(v)));
+  const rows = document.getElementById('feature-rows');
+  rows.innerHTML = sorted.map(([k, v]) => {
+    const pct = (Math.abs(v) / maxAbs * 100).toFixed(1);
+    const cls = v >= 0 ? 'pos' : 'neg';
+    const sign = v >= 0 ? '+' : '';
+    return `
+      <div class="feature-row">
+        <div class="feature-name">${featureLabels[k] || k}</div>
+        <div class="feature-track">
+          <div class="feature-fill ${cls}" style="width:0%" data-target="${pct}"></div>
+        </div>
+        <div class="feature-contrib">${sign}$${Math.round(Math.abs(v)).toLocaleString()}</div>
+      </div>`;
+  }).join('');
+
+  setTimeout(() => {
+    rows.querySelectorAll('.feature-fill').forEach(el => {
+      el.style.width = el.dataset.target + '%';
+    });
+  }, 80);
+
+  // History
+  const loc = inp.location;
+  const entry = {
+    label: `${inp.bedrooms}br/${inp.bathrooms}ba · ${inp.sqft.toLocaleString()} sqft · ${loc}`,
+    price,
+    ts: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+  };
+
+  // Deduplicate consecutive identical
+  if (!history.length || history[0].price !== Math.round(price)) {
+    history.unshift(entry);
+    if (history.length > 6) history.pop();
+    renderHistory();
+  }
+}
+
+function renderHistory() {
+  if (!history.length) return;
+  const sec = document.getElementById('history-section');
+  const list = document.getElementById('history-list');
+  sec.style.display = 'block';
+  list.innerHTML = history.map((h, i) => `
+    <div class="history-item" style="animation-delay:${i*0.04}s">
+      <span>${h.label}</span>
+      <span class="hist-price">$${Math.round(h.price).toLocaleString()}</span>
+    </div>`).join('');
+}
+
+// Trigger first prediction on load
+setTimeout(runPrediction, 400);
+</script>
+</body>
+</html>

@@ -26,7 +26,7 @@ variable "api_key" {
 }
 
 variable "allowed_ip" {
-  type        = string
+     type     = string
   description = "Your machine IP to allow DB access (run: curl ifconfig.me)"
   
   validation {

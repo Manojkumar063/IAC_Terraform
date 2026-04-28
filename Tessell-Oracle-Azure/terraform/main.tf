@@ -35,6 +35,7 @@ resource "tessell_db_service" "oracle_dev_qa" {
     timezone                = "Asia/Calcutta"   # Set your timezone
     enable_compute_sharing  = var.environment != "prod"  # Only share compute in non-prod
   }
+  
 
   # ─── Network Connectivity ─────────────────────────────────────
   service_connectivity {

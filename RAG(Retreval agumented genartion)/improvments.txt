@@ -1,0 +1,46 @@
+What a real RAG needs:
+
+Persistent Vector Store — Instead of in-memory arrays (chunks + chunkEmbeddings), use a proper vector DB like:
+
+ChromaDB (local, easy setup)
+
+Pinecone (cloud)
+
+pgvector (Postgres extension)
+
+Real Embeddings — Use dedicated embedding models instead of generic ones:
+
+text-embedding-3-small (OpenAI)
+
+nomic-embed-text (via Ollama, free/local)
+
+Better Chunking — Your chunkText likely does naive splitting. Use:
+
+Recursive character splitting with overlap (e.g. 512 tokens, 50 token overlap)
+
+Respect sentence/paragraph boundaries
+
+Semantic Retrieval — Replace basic cosine similarity with:
+
+Hybrid search (vector + keyword/BM25)
+
+Reranking (Cohere Rerank or cross-encoder)
+
+Metadata Filtering — Tag chunks with source, page number, date so you can filter before retrieval
+
+Proper LLM with RAG prompt — Use a structured prompt like:
+
+You are an assistant. Use ONLY the context below to answer.
+Context: {chunks}
+Question: {query}
+
+Copy
+Quick wins for your current code:
+
+Add chunk overlap in chunkText
+
+Store embeddings to disk (JSON file) so you don't re-embed on every restart
+
+Add source citation in the response
+
+Want me to look at your rag.js to give specific improvements?

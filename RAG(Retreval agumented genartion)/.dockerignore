@@ -1,0 +1,9 @@
+node_modules
+.env
+rag.db
+embeddings-cache.json
+chunks-store.json
+server.log
+cypress
+.github
+terraform
